@@ -1,0 +1,12 @@
+node_modules/
+dist/
+ui/dist/
+.tunnel/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.vite/
+coverage/
+*.tsbuildinfo

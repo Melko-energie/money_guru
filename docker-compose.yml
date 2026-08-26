@@ -1,0 +1,9 @@
+services:
+  money-guru:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: money-guru:prod
+    ports:
+      - "${MONEY_GURU_PORT:-6110}:80"
+    restart: unless-stopped
