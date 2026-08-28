@@ -5,9 +5,9 @@
 body {
   @apply min-h-screen font-sans text-encre antialiased;
   background:
-    radial-gradient(60rem 42rem at 6% -12%, rgba(63, 138, 61, 0.1), transparent 60%),
-    radial-gradient(52rem 38rem at 104% 6%, rgba(27, 95, 140, 0.1), transparent 60%),
-    #faf8f4;
+    radial-gradient(60rem 42rem at 6% -12%, rgba(118, 125, 47, 0.12), transparent 60%),
+    radial-gradient(52rem 38rem at 104% 6%, rgba(116, 181, 213, 0.18), transparent 60%),
+    #F1F4F5;
 }
 
 .pilule {
@@ -15,17 +15,9 @@ body {
 }
 .pilule-active { @apply bg-encre text-white; }
 
-/* pastille d'outil du rail en verre */
-.pastille-rail {
-  @apply grid h-11 w-11 place-items-center rounded-full border border-white/70 bg-white/70 text-encre/55 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:text-encre hover:shadow-md active:translate-y-0 active:scale-95;
-}
-.pastille-rail-active {
-  @apply border-transparent bg-encre text-white shadow-[0_10px_24px_-10px_rgba(14,26,36,0.7)] hover:bg-encre hover:text-white;
-}
-
-/* carte de contenu à l'intérieur de la fenêtre blanche */
+/* carte de contenu posée sur le fond de page */
 .carte-douce {
-  @apply rounded-carte border border-encre/[0.06] bg-papier/70 transition-all duration-300;
+  @apply rounded-carte bg-white shadow-carte ring-1 ring-encre/[0.05] transition-all duration-300;
 }
 
 /* curseurs natifs habillés */
@@ -33,18 +25,18 @@ body {
   @apply h-1.5 w-full cursor-pointer appearance-none rounded-pilule bg-encre/10 outline-none;
 }
 .curseur::-webkit-slider-thumb {
-  @apply h-5 w-5 appearance-none rounded-full border-[3px] border-white bg-encre shadow-[0_4px_12px_-2px_rgba(14,26,36,0.45)] transition-transform duration-200;
+  @apply h-5 w-5 appearance-none rounded-full border-[3px] border-white bg-encre shadow-[0_4px_12px_-2px_rgba(39,40,42,0.45)] transition-transform duration-200;
 }
 .curseur:hover::-webkit-slider-thumb { transform: scale(1.15); }
 .curseur:active::-webkit-slider-thumb { transform: scale(0.95); }
 .curseur::-moz-range-thumb {
-  @apply h-5 w-5 rounded-full border-[3px] border-white bg-encre shadow-[0_4px_12px_-2px_rgba(14,26,36,0.45)];
+  @apply h-5 w-5 rounded-full border-[3px] border-white bg-encre shadow-[0_4px_12px_-2px_rgba(39,40,42,0.45)];
 }
 
 /* barre de défilement discrète */
-.defilement-doux { scrollbar-width: thin; scrollbar-color: rgba(14, 26, 36, 0.16) transparent; }
+.defilement-doux { scrollbar-width: thin; scrollbar-color: rgba(39, 40, 42, 0.16) transparent; }
 .defilement-doux::-webkit-scrollbar { width: 8px; height: 8px; }
-.defilement-doux::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(14, 26, 36, 0.14); }
+.defilement-doux::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(39, 40, 42, 0.14); }
 .defilement-doux::-webkit-scrollbar-track { background: transparent; }
 
 @keyframes flotter { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-12px) } }

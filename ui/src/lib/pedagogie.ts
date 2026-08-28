@@ -64,14 +64,14 @@ export function note(id: string): Note | undefined {
 }
 
 /** Alertes contextuelles (FR-08), les plus graves en premier. */
-export function alertes(profil: ProfilFinancier): Alerte[] {
+export function alertes(profil: ProfilFinancier, revenu = profil.revenuNet): Alerte[] {
   const liste: Alerte[] = []
   const { devise } = profil
 
-  const pression = pressionMaintenance(profil.revenuNet, profil.depenses)
-  const reste = resteApresMaintenance(profil.revenuNet, profil.depenses)
-  const usageDette = usageLimiteEmprunt(profil.revenuNet, profil.dettes)
-  const ratioRembours = ratioRemboursement(profil.revenuNet, profil.dettes)
+  const pression = pressionMaintenance(revenu, profil.depenses)
+  const reste = resteApresMaintenance(revenu, profil.depenses)
+  const usageDette = usageLimiteEmprunt(revenu, profil.dettes)
+  const ratioRembours = ratioRemboursement(revenu, profil.dettes)
   const objectif = objectifFondsUrgence(profil.depenses)
   const progression = progressionUrgence(profil.soldeFondsUrgence, objectif)
   const couverts = moisCouverts(profil.soldeFondsUrgence, profil.depenses)
@@ -143,9 +143,9 @@ export function alertes(profil: ProfilFinancier): Alerte[] {
 }
 
 /** Les notes à mettre en avant, choisies d'après les alertes en cours. */
-export function notesPertinentes(profil: ProfilFinancier): Note[] {
+export function notesPertinentes(profil: ProfilFinancier, revenu = profil.revenuNet): Note[] {
   const ids = new Set<string>()
-  for (const a of alertes(profil)) {
+  for (const a of alertes(profil, revenu)) {
     if (a.id === 'pression-maintenance' || a.id === 'reste-negatif') ids.add('maintenance-vs-fun')
     if (a.id === 'urgence-vide') ids.add('urgence-liquide')
     if (a.id === 'limite-depassee' || a.id === 'remboursement-lourd') ids.add('emprunter-pour-investir')

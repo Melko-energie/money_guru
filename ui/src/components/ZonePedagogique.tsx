@@ -1,27 +1,39 @@
 import { motion } from 'framer-motion'
 import { BookOpen } from 'lucide-react'
+import { Depliable } from './Depliable'
 import { AVERTISSEMENT } from '../lib/pedagogie'
 import type { Note } from '../lib/pedagogie'
 import { elementApparition } from '../lib/animations'
 
-/** Zone pédagogique du context §7.5 : textes courts liés aux alertes en cours. */
+/**
+ * Zone pédagogique du context §7.5. Les notes sont repliées : on lit les
+ * questions, on ouvre celle qui intéresse. Aucun texte n'est perdu.
+ */
 export function ZonePedagogique({ notes }: { notes: Note[] }) {
   return (
     <motion.section
       variants={elementApparition}
-      className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+      className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
     >
-      <div className="mb-4 flex items-center gap-2">
-        <BookOpen size={16} className="text-meta" />
-        <h2 className="text-[19px] font-bold leading-none text-encre">À garder en tête</h2>
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-papier-100 text-encre/70">
+          <BookOpen size={18} strokeWidth={1.9} />
+        </span>
+        <div>
+          <h2 className="text-[15.5px] font-bold leading-tight text-encre">À garder en tête</h2>
+          <p className="text-[12px] leading-tight text-meta">
+            {notes.length} note(s) liées à votre situation — cliquez pour lire
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="flex flex-col divide-y divide-encre/[0.06]">
         {notes.map((n) => (
-          <article key={n.id} className="carte-douce p-4">
-            <h3 className="text-[13.5px] font-bold leading-snug text-encre">{n.titre}</h3>
-            <p className="mt-2 text-[12px] leading-relaxed text-meta">{n.texte}</p>
-          </article>
+          <div key={n.id} className="py-3 first:pt-0 last:pb-0">
+            <Depliable titre={n.titre}>
+              <p className="text-[12px] leading-relaxed text-meta">{n.texte}</p>
+            </Depliable>
+          </div>
         ))}
       </div>
 

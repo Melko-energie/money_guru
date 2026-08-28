@@ -5,5 +5,5 @@ services:
       dockerfile: Dockerfile
     image: money-guru:prod
     ports:
-      - "${MONEY_GURU_PORT:-6110}:80"
+      - "${MONEY_GURU_PORT:-6112}:80"
     restart: unless-stopped

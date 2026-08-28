@@ -9,9 +9,15 @@ import {
   Repeat,
   RotateCcw,
   Trash2,
+  Target,
 } from 'lucide-react'
 import { useFinances } from '../../state/finances'
 import { GrilleCalendrier } from '../../components/GrilleCalendrier'
+import { ListeMobile } from './ListeMobile'
+import { VueAnnuelle } from './VueAnnuelle'
+import { Segments } from '../../components/Champs'
+import { Chiffre } from '../../components/Chiffre'
+import { useEstMobile } from '../../state/media'
 import { EnteteSection } from '../../components/EnteteSection'
 import { FormulaireDepense, type BrouillonDepense } from './FormulaireDepense'
 import {
@@ -23,7 +29,7 @@ import {
   libelleMois,
   moisDeCleJour,
 } from '../../lib/calendrier'
-import { COULEURS_CATEGORIE, LIBELLES_CATEGORIE } from '../../lib/donneesDemo'
+import { COULEURS_CATEGORIE, LIBELLES_CATEGORIE } from '../../lib/definitions'
 import { formaterDevise } from '../../lib/format'
 import { conteneurCascade, elementApparition, elementLateral } from '../../lib/animations'
 import type { DepenseDatee, LigneJournal } from '../../lib/types'
@@ -42,6 +48,8 @@ export function PageCalendrier() {
   } = useFinances()
 
   const aujourdhui = useMemo(() => cleJourDe(), [])
+  const mobile = useEstMobile()
+  const [portee, setPortee] = useState<'mois' | 'annee'>('mois')
   const [jourSelectionne, setJourSelectionne] = useState<string | null>(null)
   const [enEdition, setEnEdition] = useState<string | null>(null)
 
@@ -55,7 +63,8 @@ export function PageCalendrier() {
 
   const caseDuJour = bilanMois.jours.find((j) => j.cle === jourActif)
   const lignesDuJour = caseDuJour?.lignes ?? []
-  const depassement = bilanMois.totalReel - bilanMois.totalPrevu
+  // l'écart se mesure sur tout ce qui sort, frais déclarés compris
+  const depassement = bilanMois.totalSorties - bilanMois.totalPrevu
 
   const changerMois = (pas: number) => {
     definirMoisAffiche(decalerMois(moisAffiche, pas))
@@ -73,12 +82,12 @@ export function PageCalendrier() {
       variants={conteneurCascade}
       initial="cache"
       animate="visible"
-      className="grid gap-5 pb-2 xl:grid-cols-[minmax(0,1.62fr)_minmax(320px,1fr)]"
+      className="grid gap-5 pb-2 xl:grid-cols-[minmax(0,1fr)_minmax(300px,330px)]"
     >
       <div className="flex min-w-0 flex-col gap-5">
         <motion.section
           variants={elementApparition}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -90,7 +99,7 @@ export function PageCalendrier() {
                   {libelleMois(moisAffiche)}
                 </h2>
                 <p className="mt-1 text-[12px] text-meta">
-                  {formaterDevise(bilanMois.totalReel, profil.devise, 0)} dépensés
+                  {formaterDevise(bilanMois.totalSorties, profil.devise, 0)} sortis
                   {bilanMois.totalProjete > 0 ? (
                     <>
                       {' '}
@@ -102,92 +111,119 @@ export function PageCalendrier() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => changerMois(-1)}
-                title="Mois précédent"
-                className="grid h-9 w-9 place-items-center rounded-full border border-encre/[0.09] bg-papier/80 text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre"
-              >
-                <ChevronLeft size={16} />
-                <span className="sr-only">Mois précédent</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => definirMoisAffiche(cleMoisDe())}
-                className="rounded-pilule border border-encre/10 bg-papier/80 px-3.5 py-2 text-[12px] font-semibold text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre"
-              >
-                Ce mois-ci
-              </button>
-              <button
-                type="button"
-                onClick={() => changerMois(1)}
-                title="Mois suivant"
-                className="grid h-9 w-9 place-items-center rounded-full border border-encre/[0.09] bg-papier/80 text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre"
-              >
-                <ChevronRight size={16} />
-                <span className="sr-only">Mois suivant</span>
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Segments
+                libelle="Portée du calendrier"
+                valeur={portee}
+                options={[
+                  { valeur: 'mois' as const, libelle: 'Mois' },
+                  { valeur: 'annee' as const, libelle: 'Année' },
+                ]}
+                onChange={setPortee}
+              />
+
+              {portee === 'mois' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => changerMois(-1)}
+                    title="Mois précédent"
+                    className="grid h-9 w-9 place-items-center rounded-full bg-papier-100 text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre"
+                  >
+                    <ChevronLeft size={16} />
+                    <span className="sr-only">Mois précédent</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => definirMoisAffiche(cleMoisDe())}
+                    className="rounded-pilule bg-papier-100 px-3.5 py-2 text-[12px] font-semibold text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre"
+                  >
+                    Ce mois-ci
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => changerMois(1)}
+                    title="Mois suivant"
+                    className="grid h-9 w-9 place-items-center rounded-full bg-papier-100 text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre"
+                  >
+                    <ChevronRight size={16} />
+                    <span className="sr-only">Mois suivant</span>
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
 
-          <div className="mb-4 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl bg-papier-100 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-meta">
-                Budget prévu
-              </p>
-              <p className="mt-0.5 text-[17px] font-bold tabular-nums text-encre">
-                {formaterDevise(bilanMois.totalPrevu, profil.devise, 0)}
-              </p>
+          {portee === 'annee' ? (
+            <VueAnnuelle
+              onOuvrirMois={(cle) => {
+                definirMoisAffiche(cle)
+                setJourSelectionne(null)
+                setPortee('mois')
+              }}
+            />
+          ) : (
+            <>
+            <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Chiffre
+                libelle="Budget prévu"
+                valeur={formaterDevise(bilanMois.totalPrevu, profil.devise, 0)}
+                sens="Ce que vos ratios allouent ce mois-ci"
+              />
+              <Chiffre
+                libelle="Frais déclarés"
+                valeur={formaterDevise(bilanMois.chargesFixes, profil.devise, 0)}
+                sens="Vos frais de maintenance, comptés sans saisie"
+              />
+              <Chiffre
+                libelle="Saisi ce mois"
+                valeur={formaterDevise(bilanMois.totalReel, profil.devise, 0)}
+                sens="La somme de ce que vous avez saisi"
+              />
+              <Chiffre
+                libelle="Écart prévu / réel"
+                valeur={`${depassement > 0 ? '+' : '−'}${formaterDevise(Math.abs(depassement), profil.devise, 0)}`}
+                sens={depassement > 0 ? 'Vous dépassez votre budget' : 'Vous restez dans votre budget'}
+                accent={depassement > 0 ? 'text-alerte-deep' : 'text-succes-deep'}
+              />
             </div>
-            <div className="rounded-2xl bg-papier-100 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-meta">
-                Réellement dépensé
-              </p>
-              <p className="mt-0.5 text-[17px] font-bold tabular-nums text-encre">
-                {formaterDevise(bilanMois.totalReel, profil.devise, 0)}
-              </p>
-            </div>
-            <div
-              className={`rounded-2xl px-4 py-3 ${
-                depassement > 0 ? 'bg-brique-tint' : 'bg-foret-tint'
-              }`}
-            >
-              <p
-                className={`text-[11px] font-semibold uppercase tracking-wide ${
-                  depassement > 0 ? 'text-brique-deep' : 'text-foret-deep'
-                }`}
-              >
-                Écart prévu / réel
-              </p>
-              <p
-                className={`mt-0.5 text-[17px] font-bold tabular-nums ${
-                  depassement > 0 ? 'text-brique-deep' : 'text-foret-deep'
-                }`}
-              >
-                {depassement > 0 ? '+' : '−'}
-                {formaterDevise(Math.abs(depassement), profil.devise, 0)}
-              </p>
-            </div>
-          </div>
 
-          <GrilleCalendrier
-            bilan={bilanMois}
-            devise={profil.devise}
-            jourSelectionne={jourActif}
-            onSelectionner={(cle) => {
-              setJourSelectionne(cle)
-              setEnEdition(null)
-            }}
-            aujourdhui={aujourdhui}
-          />
+            {mobile ? (
+              <ListeMobile
+                bilan={bilanMois}
+                devise={profil.devise}
+                jourSelectionne={jourActif}
+                onSelectionner={(cle) => {
+                  setJourSelectionne(cle)
+                  setEnEdition(null)
+                }}
+              />
+            ) : (
+              <GrilleCalendrier
+                bilan={bilanMois}
+                devise={profil.devise}
+                jourSelectionne={jourActif}
+                onSelectionner={(cle) => {
+                  setJourSelectionne(cle)
+                  setEnEdition(null)
+                }}
+                aujourdhui={aujourdhui}
+              />
+            )}
+            </>
+          )}
+
         </motion.section>
 
         <motion.section
           variants={elementApparition}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre={libelleJour(jourActif)} />
+          <EnteteSection
+            icone={CalendarDays}
+            titre={libelleJour(jourActif)}
+            sousTitre="Détail du jour et saisie"
+          />
 
           {lignesDuJour.length === 0 ? (
             <p className="mb-4 rounded-2xl bg-papier-100 px-4 py-3 text-[12.5px] text-meta">
@@ -225,9 +261,13 @@ export function PageCalendrier() {
       <div className="flex min-w-0 flex-col gap-5">
         <motion.section
           variants={elementLateral}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Prévu contre réel" />
+          <EnteteSection
+            icone={Target}
+            titre="Prévu contre réel"
+            sousTitre="Frais déclarés compris"
+          />
           <ul className="flex flex-col gap-3.5">
             {bilanMois.ecarts.map((e) => {
               const couleurs = COULEURS_CATEGORIE[e.categorie]
@@ -274,9 +314,13 @@ export function PageCalendrier() {
 
         <motion.section
           variants={elementLateral}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Jours les plus coûteux" />
+          <EnteteSection
+            icone={Flame}
+            titre="Jours les plus coûteux"
+            sousTitre="Au-delà du seuil du mois"
+          />
           {bilanMois.joursCouteux.length === 0 ? (
             <p className="text-[12.5px] text-meta">Aucune dépense saisie ce mois-ci.</p>
           ) : (
@@ -322,9 +366,13 @@ export function PageCalendrier() {
 
         <motion.section
           variants={elementLateral}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Dépenses récurrentes" />
+          <EnteteSection
+            icone={Repeat}
+            titre="Dépenses récurrentes"
+            sousTitre="Reportées sur les mois suivants"
+          />
           {bilanMois.recurrences.length === 0 ? (
             <p className="text-[12.5px] text-meta">
               Aucune récurrence. Cochez « récurrente » à la saisie pour qu’une dépense soit

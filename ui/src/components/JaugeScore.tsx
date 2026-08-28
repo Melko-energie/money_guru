@@ -5,9 +5,9 @@ import { useAnimations } from '../state/animations'
 import type { ScoreMarge } from '../lib/types'
 
 function teinte(valeur: number): [string, string] {
-  if (valeur >= 75) return ['#6FA86D', '#2A5C29']
-  if (valeur >= 55) return ['#4E83AB', '#0E3D5C']
-  if (valeur >= 35) return ['#E0A461', '#96580F']
+  if (valeur >= 75) return ['#A8B457', '#4E5A1C']
+  if (valeur >= 55) return ['#6B7530', '#2F370E']
+  if (valeur >= 35) return ['#C6CE93', '#767D2F']
   return ['#D0806E', '#8A3120']
 }
 
@@ -42,7 +42,7 @@ export function JaugeScore({ score, taille = 168 }: { score: ScoreMarge; taille?
         <path
           d={arcAnneau(centre, centre, rayon, debut, debut + etendue)}
           fill="none"
-          stroke="rgba(14,26,36,0.08)"
+          stroke="rgba(39, 40, 42,0.08)"
           strokeWidth={epaisseur}
           strokeLinecap="round"
         />

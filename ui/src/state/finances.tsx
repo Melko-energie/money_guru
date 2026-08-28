@@ -22,21 +22,39 @@ import {
   partFutur,
   partVie,
   patrimoineTotal,
-  pressionMaintenance,
+  pressionDeFrais,
   progressionUrgence,
   ratioDetteTotale,
+  redirigerPart,
   ratioRemboursement,
-  resteApresMaintenance,
   scoreMarge,
   surendettement,
   usageLimiteEmprunt,
 } from '../lib/calculs'
 import { ratiosMethode } from '../lib/methodes'
-import { cleMoisDe, construireBilan } from '../lib/calendrier'
+import {
+  anneeDeCle,
+  cleJour,
+  cleMoisDe,
+  construireBilan,
+  decomposerMois,
+} from '../lib/calendrier'
 import { alertes, notesPertinentes } from '../lib/pedagogie'
-import { PROFIL_PAR_DEFAUT } from '../lib/donneesDemo'
+import {
+  appliquerEffet,
+  chaineSuivi,
+  effetSurSoldes,
+  ficheMois,
+  fraisDuMois,
+  moisFinancant,
+  revenuDuMois,
+  situationMois,
+} from '../lib/suivi'
+import { PROFIL_VIDE } from '../lib/profilVide'
 import type {
   BilanMois,
+  MoisSuivi,
+  SituationMois,
   Categorie,
   CategorieCapital,
   CodeDevise,
@@ -44,34 +62,43 @@ import type {
   DepenseDatee,
   Dettes,
   MethodeAllocation,
+  Objectif,
+  VersementSalaire,
   ProfilFinancier,
 } from '../lib/types'
 
 const CLE_STOCKAGE = 'money-guru:profil:v2'
 
 function lireStockage(): ProfilFinancier {
-  if (typeof window === 'undefined') return PROFIL_PAR_DEFAUT
+  if (typeof window === 'undefined') return PROFIL_VIDE
   try {
     const brut = window.localStorage.getItem(CLE_STOCKAGE)
-    if (!brut) return PROFIL_PAR_DEFAUT
+    if (!brut) return PROFIL_VIDE
     const enregistre = JSON.parse(brut) as Partial<ProfilFinancier>
     return {
-      ...PROFIL_PAR_DEFAUT,
+      ...PROFIL_VIDE,
       ...enregistre,
       allocation: normaliserAllocation({
-        ...PROFIL_PAR_DEFAUT.allocation,
+        ...PROFIL_VIDE.allocation,
         ...(enregistre.allocation ?? {}),
       }),
-      dettes: { ...PROFIL_PAR_DEFAUT.dettes, ...(enregistre.dettes ?? {}) },
-      patrimoine: { ...PROFIL_PAR_DEFAUT.patrimoine, ...(enregistre.patrimoine ?? {}) },
+      dettes: { ...PROFIL_VIDE.dettes, ...(enregistre.dettes ?? {}) },
+      patrimoine: { ...PROFIL_VIDE.patrimoine, ...(enregistre.patrimoine ?? {}) },
       depenses:
         Array.isArray(enregistre.depenses) && enregistre.depenses.length
           ? enregistre.depenses
-          : PROFIL_PAR_DEFAUT.depenses,
-      journal: Array.isArray(enregistre.journal) ? enregistre.journal : PROFIL_PAR_DEFAUT.journal,
+          : PROFIL_VIDE.depenses,
+      onboarding: { ...PROFIL_VIDE.onboarding, ...(enregistre.onboarding ?? {}) },
+      journal: Array.isArray(enregistre.journal) ? enregistre.journal : PROFIL_VIDE.journal,
+      mois: enregistre.mois && typeof enregistre.mois === 'object' ? enregistre.mois : {},
+      objectifs: Array.isArray(enregistre.objectifs) ? enregistre.objectifs : [],
+      versementSalaire: {
+        ...PROFIL_VIDE.versementSalaire,
+        ...(enregistre.versementSalaire ?? {}),
+      },
     }
   } catch {
-    return PROFIL_PAR_DEFAUT
+    return PROFIL_VIDE
   }
 }
 
@@ -79,6 +106,12 @@ type ValeurContexte = {
   profil: ProfilFinancier
   /* Dérivés — recalculés à chaque changement. */
   frais: number
+  /** Frais retenus pour le mois affiché : ceux du mois, sinon ceux du profil. */
+  fraisMois: number
+  /** Revenu du mois affiché : celui saisi, sinon celui du profil. */
+  revenuMois: number
+  /** Mois dont le salaire finance le mois affiché. */
+  moisDuSalaire: string
   pression: number
   resteVital: number
   montants: Record<Categorie, number>
@@ -103,8 +136,27 @@ type ValeurContexte = {
   notes: ReturnType<typeof notesPertinentes>
   /* Calendrier des dépenses (context §7.5). */
   moisAffiche: string
+  /** Année du mois affiché : une seule période pour toute l'application. */
+  anneeAffichee: number
   bilanMois: BilanMois
   definirMoisAffiche: (cle: string) => void
+  /** Change d'année sans changer de mois — le calendrier et le suivi suivent. */
+  definirAnnee: (annee: number) => void
+  /* Suivi mensuel : ce qui reste d'un mois passe au suivant. */
+  situationDuMois: SituationMois
+  chaineDuSuivi: SituationMois[]
+  ficheDuMois: MoisSuivi
+  definirRevenuPercu: (cle: string, valeur: number | null) => void
+  /** Frais de maintenance propres à un mois ; `null` reprend ceux du profil. */
+  definirFraisMois: (cle: string, valeur: number | null) => void
+  definirVersementSalaire: (champs: Partial<VersementSalaire>) => void
+  basculerCloture: (cle: string) => void
+  /* Objectifs : un achat, une date, un poste qui le finance. */
+  ajouterObjectif: (objectif: Omit<Objectif, 'id'>) => void
+  modifierObjectif: (id: string, champs: Partial<Objectif>) => void
+  retirerObjectif: (id: string) => void
+  /** Inscrit l'achat au calendrier, au mois visé, sur le poste choisi. */
+  enregistrerAchat: (id: string) => void
   /* Actions. */
   definirPrenom: (v: string) => void
   definirDevise: (v: CodeDevise) => void
@@ -119,12 +171,18 @@ type ValeurContexte = {
   definirPatrimoine: (cle: CategorieCapital, v: number) => void
   definirTauxRendement: (v: number) => void
   definirRedirection: (c: ProfilFinancier['redirectionApresUrgence']) => void
+  /** Bascule la part « fonds d'urgence » vers la destination choisie. */
+  appliquerRedirection: () => void
   ajouterLigneJournal: (ligne: Omit<DepenseDatee, 'id'>) => void
   modifierLigneJournal: (id: string, champs: Partial<DepenseDatee>) => void
   retirerLigneJournal: (id: string) => void
   /** Matérialise une occurrence projetée en dépense réellement saisie. */
   materialiserOccurrence: (occurrence: DepenseDatee) => void
   reinitialiser: () => void
+  /** Parcours de remplissage : étape en cours et validation finale. */
+  definirEtapeOnboarding: (etape: number) => void
+  terminerOnboarding: () => void
+  reprendreOnboarding: () => void
 }
 
 const Ctx = createContext<ValeurContexte | null>(null)
@@ -194,10 +252,121 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
 
   const [moisAffiche, setMoisAffiche] = useState<string>(() => cleMoisDe())
 
+  /**
+   * Une seule période pour toute l'application : changer d'année dans une vue
+   * la change partout. Deux vues sur deux dates différentes, c'est deux
+   * lectures qui ne se recoupent jamais.
+   */
+  const definirAnnee = useCallback((annee: number) => {
+    setMoisAffiche((m) => `${Math.max(1970, Math.round(annee))}-${m.slice(5, 7)}`)
+  }, [])
+
+  const definirRevenuPercu = useCallback((cle: string, valeur: number | null) => {
+    setProfil((p) => ({
+      ...p,
+      mois: {
+        ...p.mois,
+        [cle]: { ...ficheMois(p, cle), cle, revenuPercu: valeur === null ? null : Math.max(0, valeur) },
+      },
+    }))
+  }, [])
+
+  /** Des frais propres à un mois ; `null` remet ceux du profil. */
+  const definirFraisMois = useCallback((cle: string, valeur: number | null) => {
+    setProfil((p) => ({
+      ...p,
+      mois: {
+        ...p.mois,
+        [cle]: {
+          ...ficheMois(p, cle),
+          cle,
+          fraisMaintenance: valeur === null ? null : Math.max(0, valeur),
+        },
+      },
+    }))
+  }, [])
+
+  const definirVersementSalaire = useCallback((champs: Partial<VersementSalaire>) => {
+    setProfil((p) => {
+      const jour = champs.jour === undefined ? p.versementSalaire.jour : champs.jour
+      return {
+        ...p,
+        versementSalaire: {
+          ...p.versementSalaire,
+          ...champs,
+          jour: Math.min(31, Math.max(1, Math.round(jour))),
+        },
+      }
+    })
+  }, [])
+
+  /** Clore un mois transmet son reste au suivant ; le rouvrir le retient. */
+  const basculerCloture = useCallback((cle: string) => {
+    setProfil((p) => {
+      const fiche = ficheMois(p, cle)
+      return { ...p, mois: { ...p.mois, [cle]: { ...fiche, cle, clos: !fiche.clos } } }
+    })
+  }, [])
+
+  const ajouterObjectif = useCallback((objectif: Omit<Objectif, 'id'>) => {
+    setProfil((p) => ({
+      ...p,
+      objectifs: [
+        ...p.objectifs,
+        { ...objectif, id: `objectif-${objectif.moisCible}-${p.objectifs.length + 1}` },
+      ],
+    }))
+  }, [])
+
+  const modifierObjectif = useCallback((id: string, champs: Partial<Objectif>) => {
+    setProfil((p) => ({
+      ...p,
+      objectifs: p.objectifs.map((o) => (o.id === id ? { ...o, ...champs } : o)),
+    }))
+  }, [])
+
+  const retirerObjectif = useCallback((id: string) => {
+    setProfil((p) => ({ ...p, objectifs: p.objectifs.filter((o) => o.id !== id) }))
+  }, [])
+
+  /**
+   * L'achat devient une vraie ligne du calendrier, au mois visé et sur le poste
+   * qui l'a financé. L'objectif est marqué pour qu'il ne soit jamais inscrit
+   * deux fois.
+   */
+  const enregistrerAchat = useCallback((id: string) => {
+    setProfil((p) => {
+      const objectif = p.objectifs.find((o) => o.id === id)
+      if (!objectif || objectif.achatEnregistre) return p
+      const { annee, mois } = decomposerMois(objectif.moisCible)
+      const aujourdhui = new Date()
+      // un achat du mois en cours se date du jour, pas du 1er
+      const jour =
+        objectif.moisCible === cleMoisDe(aujourdhui) ? aujourdhui.getDate() : 1
+      return {
+        ...p,
+        objectifs: p.objectifs.map((o) => (o.id === id ? { ...o, achatEnregistre: true } : o)),
+        journal: [
+          ...p.journal,
+          {
+            id: `achat-${objectif.id}`,
+            date: cleJour(annee, mois, jour),
+            montant: Math.max(0, objectif.montant),
+            devise: p.devise,
+            categorie: objectif.categorie,
+            libelle: objectif.libelle,
+            note: 'Objectif réalisé',
+            recurrent: false,
+          },
+        ],
+      }
+    })
+  }, [])
+
   const ajouterLigneJournal = useCallback((ligne: Omit<DepenseDatee, 'id'>) => {
     setProfil((p) => {
       const id = `saisie-${ligne.date}-${p.journal.length + 1}-${Math.round(ligne.montant)}`
-      return {
+      const suivant = {
         ...p,
         journal: [
           ...p.journal,
@@ -205,25 +374,36 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
           { ...ligne, id, serie: ligne.recurrent ? (ligne.serie ?? id) : undefined },
         ],
       }
+      // mettre de côté ou rembourser n'est pas qu'une écriture : le solde bouge
+      return appliquerEffet(suivant, effetSurSoldes(ligne, 1))
     })
   }, [])
 
   const modifierLigneJournal = useCallback((id: string, champs: Partial<DepenseDatee>) => {
-    setProfil((p) => ({
-      ...p,
-      journal: p.journal.map((l) => {
-        if (l.id !== id) return l
-        const suivante = { ...l, ...champs }
-        // devenir récurrente crée une série ; ne plus l'être la dissout
-        if (suivante.recurrent) suivante.serie = suivante.serie ?? suivante.id
-        else delete suivante.serie
-        return suivante
-      }),
-    }))
+    setProfil((p) => {
+      const avant = p.journal.find((l) => l.id === id)
+      if (!avant) return p
+      const apres = { ...avant, ...champs }
+      // devenir récurrente crée une série ; ne plus l'être la dissout
+      if (apres.recurrent) apres.serie = apres.serie ?? apres.id
+      else delete apres.serie
+
+      const suivant = { ...p, journal: p.journal.map((l) => (l.id === id ? apres : l)) }
+      // on défait l'effet de l'ancienne ligne avant d'appliquer celui de la nouvelle
+      return appliquerEffet(
+        appliquerEffet(suivant, effetSurSoldes(avant, -1)),
+        effetSurSoldes(apres, 1),
+      )
+    })
   }, [])
 
   const retirerLigneJournal = useCallback((id: string) => {
-    setProfil((p) => ({ ...p, journal: p.journal.filter((l) => l.id !== id) }))
+    setProfil((p) => {
+      const ligne = p.journal.find((l) => l.id === id)
+      if (!ligne) return p
+      const suivant = { ...p, journal: p.journal.filter((l) => l.id !== id) }
+      return appliquerEffet(suivant, effetSurSoldes(ligne, -1))
+    })
   }, [])
 
   /** Une occurrence projetée n'existe qu'en mémoire : l'accepter la fige dans le journal. */
@@ -234,14 +414,21 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
       // le drapeau `projetee` ne doit surtout pas être persisté : la ligne
       // deviendrait immuable et resterait affichée comme une prévision
       const { projetee: _ignore, ...reelle } = occurrence as DepenseDatee & { projetee?: boolean }
-      return { ...p, journal: [...p.journal, { ...reelle, id }] }
+      const suivant = { ...p, journal: [...p.journal, { ...reelle, id }] }
+      return appliquerEffet(suivant, effetSurSoldes(reelle, 1))
     })
   }, [])
 
   const valeur = useMemo<ValeurContexte>(() => {
     const frais = fraisMaintenance(profil.depenses)
     const objectifUrgence = objectifFondsUrgence(profil.depenses)
-    const montants = montantsAlloues(profil.revenuNet, profil.allocation)
+    // tout ce que l'application affiche suit le mois regardé, pas une moyenne :
+    // un mois à 5 000 et le suivant à 15 000 ne donnent pas la même répartition
+    const revenuMois = revenuDuMois(profil, moisAffiche)
+    const montants = montantsAlloues(revenuMois, profil.allocation)
+    // les frais peuvent changer d'un mois à l'autre : le tableau de bord suit
+    // ceux du mois regardé, pas une valeur figée dans le profil
+    const fraisMois = fraisDuMois(profil, moisAffiche)
     const progression = progressionUrgence(profil.soldeFondsUrgence, objectifUrgence)
 
     // le budget alloué aux dettes sert de remboursement s'il dépasse le versement saisi
@@ -253,8 +440,11 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
     return {
       profil,
       frais,
-      pression: pressionMaintenance(profil.revenuNet, profil.depenses),
-      resteVital: resteApresMaintenance(profil.revenuNet, profil.depenses),
+      fraisMois,
+      revenuMois,
+      moisDuSalaire: moisFinancant(profil, moisAffiche),
+      pression: pressionDeFrais(revenuMois, fraisMois),
+      resteVital: revenuMois - fraisMois,
       montants,
       ratioFutur: partFutur(profil.allocation),
       ratioVie: partVie(profil.allocation),
@@ -268,20 +458,39 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
       ),
       paliers: paliersUrgence(profil.depenses, profil.soldeFondsUrgence),
       urgenceAtteinte: progression >= 1,
-      limiteDette: limiteEmprunt(profil.revenuNet, profil.dettes),
-      usageDette: usageLimiteEmprunt(profil.revenuNet, profil.dettes),
-      ratioRembours: ratioRemboursement(profil.revenuNet, dettesEffectives),
-      ratioDette: ratioDetteTotale(profil.revenuNet, profil.dettes),
+      limiteDette: limiteEmprunt(revenuMois, profil.dettes),
+      usageDette: usageLimiteEmprunt(revenuMois, profil.dettes),
+      ratioRembours: ratioRemboursement(revenuMois, dettesEffectives),
+      ratioDette: ratioDetteTotale(revenuMois, profil.dettes),
       moisSolderDette: moisPourSolderDette(dettesEffectives),
-      detteExcessive: surendettement(profil.revenuNet, dettesEffectives),
+      detteExcessive: surendettement(revenuMois, dettesEffectives),
       capitalProductif: capitalMobilisable(profil.patrimoine),
       patrimoineComplet: patrimoineTotal(profil.patrimoine),
-      score: scoreMarge(profil),
-      listeAlertes: alertes(profil),
-      notes: notesPertinentes(profil),
+      score: scoreMarge(profil, revenuMois),
+      listeAlertes: alertes(profil, revenuMois),
+      notes: notesPertinentes(profil, revenuMois),
       moisAffiche,
-      bilanMois: construireBilan(profil.journal, moisAffiche, profil.revenuNet, profil.allocation),
+      bilanMois: construireBilan(
+        profil.journal,
+        moisAffiche,
+        revenuMois,
+        profil.allocation,
+        fraisMois,
+      ),
+      anneeAffichee: anneeDeCle(moisAffiche),
       definirMoisAffiche: setMoisAffiche,
+      definirAnnee,
+      situationDuMois: situationMois(profil, moisAffiche),
+      chaineDuSuivi: chaineSuivi(profil, moisAffiche).slice(-12),
+      ficheDuMois: ficheMois(profil, moisAffiche),
+      definirRevenuPercu,
+      definirFraisMois,
+      definirVersementSalaire,
+      basculerCloture,
+      ajouterObjectif,
+      modifierObjectif,
+      retirerObjectif,
+      enregistrerAchat,
       definirPrenom: (v: string) => majProfil({ prenom: v }),
       definirDevise: (v: CodeDevise) =>
         setProfil((p) => ({
@@ -308,14 +517,33 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
       definirTauxRendement: (v: number) =>
         majProfil({ tauxRendementAnnuel: Math.min(20, Math.max(0, v)) }),
       definirRedirection: (c) => majProfil({ redirectionApresUrgence: c }),
+      appliquerRedirection: () =>
+        setProfil((p) => {
+          if (p.allocation.urgence <= 0) return p
+          return {
+            ...p,
+            methode: 'personnalisee',
+            allocation: redirigerPart(p.allocation, 'urgence', p.redirectionApresUrgence),
+          }
+        }),
       ajouterLigneJournal,
       modifierLigneJournal,
       retirerLigneJournal,
       materialiserOccurrence,
       reinitialiser: () => {
-        setProfil(PROFIL_PAR_DEFAUT)
+        setProfil(PROFIL_VIDE)
         setMoisAffiche(cleMoisDe())
       },
+      definirEtapeOnboarding: (etape: number) =>
+        setProfil((p) => ({
+          ...p,
+          onboarding: { ...p.onboarding, etape: Math.max(0, etape) },
+        })),
+      terminerOnboarding: () =>
+        setProfil((p) => ({ ...p, onboarding: { ...p.onboarding, termine: true } })),
+      /** Revenir au parcours pour corriger, sans rien perdre. */
+      reprendreOnboarding: () =>
+        setProfil((p) => ({ ...p, onboarding: { etape: 0, termine: false } })),
     }
   }, [
     profil,
@@ -328,6 +556,15 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
     definirDettes,
     definirPatrimoine,
     moisAffiche,
+    definirAnnee,
+    definirRevenuPercu,
+    definirFraisMois,
+    definirVersementSalaire,
+    basculerCloture,
+    ajouterObjectif,
+    modifierObjectif,
+    retirerObjectif,
+    enregistrerAchat,
     ajouterLigneJournal,
     modifierLigneJournal,
     retirerLigneJournal,

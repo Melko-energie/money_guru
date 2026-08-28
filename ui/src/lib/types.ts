@@ -54,6 +54,113 @@ export type Dettes = {
 
 export type Patrimoine = Record<CategorieCapital, number>
 
+/**
+ * Ce qui est propre à un mois donné (context §5 du brief de refonte).
+ * Le report entrant n'y figure pas : il se recalcule depuis la chaîne, pour
+ * qu'une correction sur un mois ancien se propage aux suivants.
+ */
+export type MoisSuivi = {
+  /** Clé « AAAA-MM ». */
+  cle: string
+  /** Revenu réellement perçu ; `null` = celui du profil. */
+  revenuPercu: number | null
+  /**
+   * Frais de maintenance de ce mois-là ; absent ou `null` = le total déclaré
+   * du profil. Un loyer qui augmente ou une facture exceptionnelle ne valent
+   * que pour leur mois : ils ne réécrivent pas le passé.
+   */
+  fraisMaintenance?: number | null
+  /** Un mois clos transmet son reste au mois suivant. */
+  clos: boolean
+}
+
+/**
+ * Quand tombe le salaire, et quel mois il finance.
+ * Un salaire touché le 28 août sert à vivre en septembre : sans ce réglage,
+ * l'application ferait porter la prime d'août sur un mois déjà passé.
+ */
+export type VersementSalaire = {
+  /** Jour du mois où le salaire tombe, de 1 à 31. */
+  jour: number
+  /** Vrai si le salaire touché ce mois-là finance le mois suivant. */
+  financeMoisSuivant: boolean
+}
+
+/**
+ * Un achat prévu à une échéance : « une moto en février 2027 ».
+ * Il est financé par un poste existant — objectifs, ou fun money quand c'est
+ * un achat plaisir — et jamais par un poste inventé pour l'occasion.
+ */
+export type Objectif = {
+  id: string
+  libelle: string
+  /** Budget visé, dans la devise du profil. */
+  montant: number
+  /** Clé « AAAA-MM » du mois d'achat visé. */
+  moisCible: string
+  categorie: Extract<Categorie, 'objectifs' | 'fun'>
+  /** Ce qui est déjà mis de côté pour lui. */
+  dejaMisDeCote: number
+  /** Vrai une fois l'achat inscrit au calendrier, pour ne pas le compter deux fois. */
+  achatEnregistre?: boolean
+  note?: string
+}
+
+/**
+ * Une ligne de l'avancement cumulé de l'année.
+ * Salaire cumulé + salaire du mois − frais de maintenance = avancement.
+ */
+export type CumulMois = {
+  cle: string
+  /** Vrai si le mois compte : il est passé, ou son salaire a été saisi d'avance. */
+  renseigne: boolean
+  revenu: number
+  maintenance: number
+  /** revenu − maintenance : ce que le mois ajoute vraiment. */
+  net: number
+  cumulRevenu: number
+  cumulMaintenance: number
+  /** Le salaire accumulé, net de maintenance, depuis janvier. */
+  cumulNet: number
+}
+
+/** Où en est l'utilisateur dans le parcours de remplissage. */
+export type Onboarding = {
+  /** Index de l'étape en cours, pour reprendre où on s'est arrêté. */
+  etape: number
+  termine: boolean
+}
+
+/** Situation complète d'un mois, reports compris. */
+export type SituationMois = {
+  cle: string
+  revenu: number
+  /** Ce qui restait du mois précédent, catégorie par catégorie. */
+  reportEntrant: Record<Categorie, number>
+  /** revenu × ratio, sans le report. */
+  alloue: Record<Categorie, number>
+  /** report + alloué : ce qui est réellement disponible ce mois. */
+  budget: Record<Categorie, number>
+  /** Ce qui a été saisi à la main dans le journal. */
+  depense: Record<Categorie, number>
+  /**
+   * Les frais de maintenance déclarés pour ce mois : ils sortent de toute
+   * façon, sans saisie. Ils pèsent sur la seule catégorie maintenance.
+   */
+  chargesFixes: number
+  /** budget − charges fixes − dépensé : le report sortant. */
+  reste: Record<Categorie, number>
+  totalReportEntrant: number
+  totalBudget: number
+  /** Somme du journal seul. */
+  totalDepense: number
+  totalCharges: number
+  /** Tout ce qui sort : charges fixes comprises. */
+  totalSorties: number
+  totalReste: number
+  clos: boolean
+}
+
 export type ProfilFinancier = {
   prenom: string
   devise: CodeDevise
@@ -71,6 +178,13 @@ export type ProfilFinancier = {
   redirectionApresUrgence: Exclude<Categorie, 'urgence' | 'maintenance'>
   /** Journal des dépenses datées, saisi à la main (context §7.5). */
   journal: DepenseDatee[]
+  /** Quand le salaire tombe, et quel mois il finance. */
+  versementSalaire: VersementSalaire
+  /** Suivi mois par mois, indexé par clé « AAAA-MM ». */
+  mois: Record<string, MoisSuivi>
+  /** Achats prévus à échéance, du plus proche au plus lointain. */
+  objectifs: Objectif[]
+  onboarding: Onboarding
 }
 
 /** Versements en début de mois par défaut (context §6.5). */
@@ -158,7 +272,7 @@ export type EcartCategorie = {
   categorie: Categorie
   /** Budget mensuel issu des ratios d'allocation. */
   prevu: number
-  /** Dépenses réellement saisies ce mois. */
+  /** Ce qui sort réellement : saisies du mois, charges fixes comprises. */
   reel: number
   /** Récurrences déjà prévues et pas encore saisies. */
   projete: number
@@ -185,7 +299,12 @@ export type BilanMois = {
   /** Index 0-11, comme `Date`. */
   mois: number
   jours: JourCalendrier[]
+  /** Somme des lignes saisies du mois. */
   totalReel: number
+  /** Frais de maintenance déclarés pour ce mois : comptés sans saisie. */
+  chargesFixes: number
+  /** totalReel + chargesFixes : tout ce qui sort réellement. */
+  totalSorties: number
   totalProjete: number
   totalPrevu: number
   ecarts: EcartCategorie[]
@@ -194,7 +313,15 @@ export type BilanMois = {
   recurrences: DepenseDatee[]
 }
 
-export type Vue = 'tableau' | 'methodes' | 'calendrier' | 'simulateur' | 'patrimoine' | 'reglages'
+export type Vue =
+  | 'tableau'
+  | 'methodes'
+  | 'objectifs'
+  | 'calendrier'
+  | 'suivi'
+  | 'simulateur'
+  | 'patrimoine'
+  | 'reglages'
 
 export type NiveauAlerte = 'info' | 'attention' | 'danger'
 

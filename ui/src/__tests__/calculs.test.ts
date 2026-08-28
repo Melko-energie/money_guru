@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ANNEES_CARRIERE,
+  redirigerPart,
   CATEGORIES,
   MOIS_OBJECTIF_URGENCE,
   ajusterAllocation,
@@ -27,7 +28,7 @@ import {
 } from '../lib/calculs'
 import { METHODES, bilanMethode, comparerMethodes, ratiosMethode } from '../lib/methodes'
 import { alertes } from '../lib/pedagogie'
-import { PROFIL_PAR_DEFAUT } from '../lib/donneesDemo'
+import { PROFIL_DE_TEST } from '../test/profils'
 import type { Allocation, Depense, Dettes } from '../lib/types'
 
 const depenses: Depense[] = [
@@ -244,7 +245,7 @@ describe('projection de capital', () => {
 
 describe('score de marge de manœuvre', () => {
   it('reste borné entre 0 et 100', () => {
-    const s = scoreMarge(PROFIL_PAR_DEFAUT)
+    const s = scoreMarge(PROFIL_DE_TEST)
     expect(s.valeur).toBeGreaterThanOrEqual(0)
     expect(s.valeur).toBeLessThanOrEqual(100)
     expect(s.composantes).toHaveLength(4)
@@ -252,14 +253,14 @@ describe('score de marge de manœuvre', () => {
   })
 
   it('monte quand la sécurité progresse', () => {
-    const faible = scoreMarge({ ...PROFIL_PAR_DEFAUT, soldeFondsUrgence: 0 })
-    const fort = scoreMarge({ ...PROFIL_PAR_DEFAUT, soldeFondsUrgence: 500_000 })
+    const faible = scoreMarge({ ...PROFIL_DE_TEST, soldeFondsUrgence: 0 })
+    const fort = scoreMarge({ ...PROFIL_DE_TEST, soldeFondsUrgence: 500_000 })
     expect(fort.valeur).toBeGreaterThan(faible.valeur)
   })
 
   it('descend quand la maintenance sature le revenu', () => {
-    const serein = scoreMarge({ ...PROFIL_PAR_DEFAUT, revenuNet: 30_000 })
-    const tendu = scoreMarge({ ...PROFIL_PAR_DEFAUT, revenuNet: 9000 })
+    const serein = scoreMarge({ ...PROFIL_DE_TEST, revenuNet: 30_000 })
+    const tendu = scoreMarge({ ...PROFIL_DE_TEST, revenuNet: 9000 })
     expect(serein.valeur).toBeGreaterThan(tendu.valeur)
   })
 })
@@ -274,16 +275,16 @@ describe('méthodes d’allocation', () => {
   })
 
   it('respecte les contraintes annoncées', () => {
-    const cinquante = ratiosMethode('50-30-20', PROFIL_PAR_DEFAUT.allocation)
+    const cinquante = ratiosMethode('50-30-20', PROFIL_DE_TEST.allocation)
     expect(cinquante.maintenance).toBeLessThanOrEqual(50)
     expect(cinquante.fun + cinquante.objectifs).toBeLessThanOrEqual(30)
     expect(cinquante.urgence + cinquante.investissement + cinquante.dettes).toBeGreaterThanOrEqual(20)
 
-    const soixanteDix = ratiosMethode('70-30', PROFIL_PAR_DEFAUT.allocation)
+    const soixanteDix = ratiosMethode('70-30', PROFIL_DE_TEST.allocation)
     expect(soixanteDix.maintenance + soixanteDix.fun + soixanteDix.objectifs).toBeLessThanOrEqual(70)
     expect(partFutur(soixanteDix)).toBeGreaterThanOrEqual(30)
 
-    const defense = ratiosMethode('defense', PROFIL_PAR_DEFAUT.allocation)
+    const defense = ratiosMethode('defense', PROFIL_DE_TEST.allocation)
     expect(defense.fun).toBeLessThanOrEqual(5)
     expect(defense.urgence).toBeGreaterThan(cinquante.urgence)
   })
@@ -293,16 +294,16 @@ describe('méthodes d’allocation', () => {
   })
 
   it('projette chaque méthode sur la situation réelle', () => {
-    const bilan = bilanMethode(PROFIL_PAR_DEFAUT, 'defense')
+    const bilan = bilanMethode(PROFIL_DE_TEST, 'defense')
     expect(bilan.capitalCarriere).toBeGreaterThan(0)
-    expect(bilan.funMensuel).toBeCloseTo(PROFIL_PAR_DEFAUT.revenuNet * 0.05, 6)
+    expect(bilan.funMensuel).toBeCloseTo(PROFIL_DE_TEST.revenuNet * 0.05, 6)
     expect(bilan.score).toBeGreaterThanOrEqual(0)
   })
 
   it('chiffre l’écart de capital face à la stratégie en cours', () => {
-    const bilans = comparerMethodes(PROFIL_PAR_DEFAUT)
+    const bilans = comparerMethodes(PROFIL_DE_TEST)
     expect(bilans).toHaveLength(5)
-    const courant = bilans.find((b) => b.methode === PROFIL_PAR_DEFAUT.methode)
+    const courant = bilans.find((b) => b.methode === PROFIL_DE_TEST.methode)
     expect(courant?.ecartCapital).toBeCloseTo(0, 6)
     // le mode défense investit moins : son capital de carrière est inférieur
     const defense = bilans.find((b) => b.methode === 'defense')
@@ -312,24 +313,47 @@ describe('méthodes d’allocation', () => {
 
 describe('alertes', () => {
   it('ne signale rien de grave sur le profil de démonstration', () => {
-    expect(alertes(PROFIL_PAR_DEFAUT).some((a) => a.niveau === 'danger')).toBe(false)
+    expect(alertes(PROFIL_DE_TEST).some((a) => a.niveau === 'danger')).toBe(false)
   })
 
   it('signale un revenu insuffisant', () => {
-    const a = alertes({ ...PROFIL_PAR_DEFAUT, revenuNet: 3000 })
+    const a = alertes({ ...PROFIL_DE_TEST, revenuNet: 3000 })
     expect(a.some((x) => x.id === 'reste-negatif')).toBe(true)
   })
 
   it('signale le dépassement de la limite d’emprunt', () => {
     const a = alertes({
-      ...PROFIL_PAR_DEFAUT,
+      ...PROFIL_DE_TEST,
       dettes: { total: 90_000, remboursementMensuel: 700, multiplicateurLimite: 3 },
     })
     expect(a.some((x) => x.id === 'limite-depassee')).toBe(true)
   })
 
   it('félicite quand le fonds d’urgence est complet', () => {
-    const a = alertes({ ...PROFIL_PAR_DEFAUT, soldeFondsUrgence: 500_000 })
+    const a = alertes({ ...PROFIL_DE_TEST, soldeFondsUrgence: 500_000 })
     expect(a.some((x) => x.id === 'urgence-atteinte')).toBe(true)
+  })
+})
+
+describe('redirection d’une part', () => {
+  const base = {
+    maintenance: 50,
+    fun: 12,
+    objectifs: 6,
+    urgence: 12,
+    investissement: 15,
+    dettes: 5,
+  }
+
+  it('transfère toute la part et garde la somme à 100 %', () => {
+    const a = redirigerPart(base, 'urgence', 'investissement')
+    expect(a.urgence).toBe(0)
+    expect(a.investissement).toBe(27)
+    expect(Object.values(a).reduce((somme: number, v: number) => somme + v, 0)).toBe(100)
+  })
+
+  it('ne touche à rien si la part est déjà nulle ou si la cible est la source', () => {
+    expect(redirigerPart({ ...base, urgence: 0 }, 'urgence', 'fun')).toEqual({ ...base, urgence: 0 })
+    expect(redirigerPart(base, 'urgence', 'urgence')).toEqual(base)
   })
 })

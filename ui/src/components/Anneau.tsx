@@ -20,12 +20,15 @@ export function Anneau({
   epaisseur = 18,
   enfant,
   segmentActif,
+  surSegment,
 }: {
   segments: SegmentAnneau[]
   taille?: number
   epaisseur?: number
   enfant?: React.ReactNode
   segmentActif?: string | null
+  /** Survol ou focus d'un segment : c'est lui qui pilote le détail au centre. */
+  surSegment?: (cle: string | null) => void
 }) {
   const id = useId()
   const { animations } = useAnimations()
@@ -75,7 +78,7 @@ export function Anneau({
           cy={centre}
           r={rayon}
           fill="none"
-          stroke="rgba(14,26,36,0.06)"
+          stroke="rgba(39, 40, 42,0.06)"
           strokeWidth={epaisseur}
         />
         <circle
@@ -83,7 +86,7 @@ export function Anneau({
           cy={centre}
           r={rayon - epaisseur - 5}
           fill="none"
-          stroke="rgba(14,26,36,0.04)"
+          stroke="rgba(39, 40, 42,0.04)"
           strokeWidth={2}
         />
 
@@ -103,6 +106,14 @@ export function Anneau({
                 pathLength: { duration: 0.9, delay: 0.12 * i, ease: [0.22, 1, 0.36, 1] },
                 opacity: { duration: 0.28 },
               }}
+              tabIndex={surSegment ? 0 : undefined}
+              role={surSegment ? 'button' : undefined}
+              aria-label={surSegment ? `${a.libelle} ${Math.round(a.part * 100)} %` : undefined}
+              style={surSegment ? { cursor: 'pointer', outline: 'none' } : undefined}
+              onMouseEnter={surSegment ? () => surSegment(a.cle) : undefined}
+              onMouseLeave={surSegment ? () => surSegment(null) : undefined}
+              onFocus={surSegment ? () => surSegment(a.cle) : undefined}
+              onBlur={surSegment ? () => surSegment(null) : undefined}
             />
           )
         })}

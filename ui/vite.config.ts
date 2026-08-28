@@ -6,10 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
-    port: 6010,
+    port: 6012,
     strictPort: true,
     allowedHosts: ['.loca.lt'],
-    proxy: { '/api': 'http://127.0.0.1:3010' },
+    proxy: { '/api': 'http://127.0.0.1:3012' },
   },
   test: {
     environment: 'jsdom',

@@ -44,10 +44,15 @@ export function fraisMaintenance(depenses: Depense[]): number {
   return depenses.reduce((somme, d) => somme + Math.max(0, d.montant), 0)
 }
 
+/** pression = frais / revenu, à partir d'un total de frais déjà connu. */
+export function pressionDeFrais(revenuNet: number, frais: number): number {
+  if (revenuNet <= 0) return 0
+  return frais / revenuNet
+}
+
 /** pression_maintenance = frais_maintenance_mensuels / revenu_net_mensuel */
 export function pressionMaintenance(revenuNet: number, depenses: Depense[]): number {
-  if (revenuNet <= 0) return 0
-  return fraisMaintenance(depenses) / revenuNet
+  return pressionDeFrais(revenuNet, fraisMaintenance(depenses))
 }
 
 /** Ce qui reste une fois la maintenance réelle payée. */
@@ -121,6 +126,24 @@ export function ajusterAllocation(
     }
   })
   return suivante
+}
+
+/**
+ * Bascule toute la part d'une catégorie sur une autre.
+ * Transfert exact, sans redistribution : la somme reste à 100 %.
+ * Sert quand le fonds d'urgence est plein et que sa part doit servir ailleurs.
+ */
+export function redirigerPart(
+  allocation: Allocation,
+  source: Categorie,
+  cible: Categorie,
+): Allocation {
+  if (source === cible || allocation[source] <= 0) return allocation
+  return {
+    ...allocation,
+    [source]: 0,
+    [cible]: allocation[cible] + allocation[source],
+  }
 }
 
 /** Corrige un jeu de ratios pour qu'il totalise exactement 100 %. */
@@ -320,13 +343,13 @@ const borne = (v: number) => Math.min(1, Math.max(0, v))
  * pression de maintenance, avancement du fonds d'urgence, poids de la dette
  * et part réellement consacrée au futur.
  */
-export function scoreMarge(profil: ProfilFinancier): ScoreMarge {
-  const pression = pressionMaintenance(profil.revenuNet, profil.depenses)
+export function scoreMarge(profil: ProfilFinancier, revenu = profil.revenuNet): ScoreMarge {
+  const pression = pressionMaintenance(revenu, profil.depenses)
   const progression = progressionUrgence(
     profil.soldeFondsUrgence,
     objectifFondsUrgence(profil.depenses),
   )
-  const usageDette = usageLimiteEmprunt(profil.revenuNet, profil.dettes)
+  const usageDette = usageLimiteEmprunt(revenu, profil.dettes)
   const futur = partFutur(profil.allocation) / 100
 
   const composantes = [

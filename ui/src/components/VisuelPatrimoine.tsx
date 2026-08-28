@@ -28,24 +28,24 @@ export const VisuelPatrimoine = memo(function VisuelPatrimoine({
     >
       <defs>
         <linearGradient id={`${id}-arc1`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#6FA86D" />
-          <stop offset="100%" stopColor="#2A5C29" />
+          <stop offset="0%" stopColor="#A8B457" />
+          <stop offset="100%" stopColor="#4E5A1C" />
         </linearGradient>
         <linearGradient id={`${id}-arc2`} x1="1" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#4E83AB" />
-          <stop offset="100%" stopColor="#0E3D5C" />
+          <stop offset="0%" stopColor="#9DCBE3" />
+          <stop offset="100%" stopColor="#3F7B9E" />
         </linearGradient>
         <linearGradient id={`${id}-piece`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#F2D9AE" />
-          <stop offset="100%" stopColor="#C77A21" />
+          <stop offset="0%" stopColor="#E3E8C4" />
+          <stop offset="100%" stopColor="#A8B457" />
         </linearGradient>
         <linearGradient id={`${id}-tranche`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#C77A21" />
-          <stop offset="100%" stopColor="#96580F" />
+          <stop offset="0%" stopColor="#A8B457" />
+          <stop offset="100%" stopColor="#767D2F" />
         </linearGradient>
         <radialGradient id={`${id}-halo`}>
-          <stop offset="0%" stopColor="#3F8A3D" stopOpacity="0.32" />
-          <stop offset="100%" stopColor="#3F8A3D" stopOpacity="0" />
+          <stop offset="0%" stopColor="#767D2F" stopOpacity="0.32" />
+          <stop offset="100%" stopColor="#767D2F" stopOpacity="0" />
         </radialGradient>
       </defs>
 
@@ -118,9 +118,9 @@ export const VisuelPatrimoine = memo(function VisuelPatrimoine({
 
       {/* éclats discrets */}
       <g className={animations ? 'animate-[pulser_5s_ease-in-out_infinite]' : ''}>
-        <circle cx="243" cy="78" r="6" fill="#3F8A3D" opacity="0.55" />
-        <circle cx="64" cy="104" r="4" fill="#1B5F8C" opacity="0.5" />
-        <circle cx="82" cy="228" r="5" fill="#C77A21" opacity="0.45" />
+        <circle cx="243" cy="78" r="6" fill="#767D2F" opacity="0.55" />
+        <circle cx="64" cy="104" r="4" fill="#3D470F" opacity="0.5" />
+        <circle cx="82" cy="228" r="5" fill="#A8B457" opacity="0.45" />
       </g>
     </svg>
   )

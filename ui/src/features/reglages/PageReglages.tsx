@@ -7,19 +7,33 @@ import {
   Lightbulb,
   Plus,
   Repeat,
+  ListChecks,
   RotateCcw,
   ShieldQuestion,
   ShoppingBasket,
   Smartphone,
   Trash2,
   Users,
+  Gauge,
+  Scale,
+  ShieldCheck,
+  Target,
+  Wallet,
+  Zap,
 } from 'lucide-react'
 import { useFinances } from '../../state/finances'
-import { ChampMontant, Curseur, Selecteur } from '../../components/Champs'
+import {
+  ChampMontant,
+  CompteurPourcent,
+  Curseur,
+  Segments,
+  Selecteur,
+} from '../../components/Champs'
+import { BasculeAnimations } from '../../components/BasculeAnimations'
 import { EnteteSection } from '../../components/EnteteSection'
 import { BarreProgression } from '../../components/BarreProgression'
 import { DetailScore } from '../../components/JaugeScore'
-import { COULEURS_CATEGORIE, LIBELLES_CATEGORIE } from '../../lib/donneesDemo'
+import { COULEURS_CATEGORIE, LIBELLES_CATEGORIE } from '../../lib/definitions'
 import { METHODES } from '../../lib/methodes'
 import { CATEGORIES, MOIS_OBJECTIF_URGENCE } from '../../lib/calculs'
 import { DEVISES, formaterDevise, formaterPourcent, formaterRatio } from '../../lib/format'
@@ -55,6 +69,7 @@ export function PageReglages() {
     definirPrenom,
     definirDevise,
     definirRevenu,
+    definirVersementSalaire,
     definirDepense,
     ajouterDepense,
     retirerDepense,
@@ -64,6 +79,7 @@ export function PageReglages() {
     definirDettes,
     definirTauxRendement,
     reinitialiser,
+    reprendreOnboarding,
   } = useFinances()
 
   return (
@@ -71,14 +87,18 @@ export function PageReglages() {
       variants={conteneurCascade}
       initial="cache"
       animate="visible"
-      className="grid gap-5 pb-2 xl:grid-cols-[minmax(0,1.62fr)_minmax(320px,1fr)]"
+      className="grid gap-5 pb-2 xl:grid-cols-[minmax(0,1fr)_minmax(300px,330px)]"
     >
       <div className="flex min-w-0 flex-col gap-5">
         <motion.section
           variants={elementApparition}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Ce qui rentre" />
+          <EnteteSection
+            icone={Wallet}
+            titre="Ce qui rentre"
+            sousTitre="Revenu net, devise, prénom"
+          />
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <label htmlFor="prenom" className="mb-1.5 block text-[12px] font-semibold text-meta">
@@ -89,7 +109,7 @@ export function PageReglages() {
                 value={profil.prenom}
                 onChange={(e) => definirPrenom(e.target.value)}
                 maxLength={24}
-                className="h-12 w-full rounded-2xl border border-encre/[0.09] bg-white px-4 text-[15px] font-semibold text-encre outline-none transition-all duration-300 focus:border-saphir/45 focus:shadow-[0_16px_36px_-24px_rgba(27,95,140,0.75)]"
+                className="h-12 w-full rounded-2xl border border-encre/[0.09] bg-white px-4 text-[15px] font-semibold text-encre outline-none transition-all duration-300 focus:border-ciel focus:shadow-[0_16px_36px_-24px_rgba(116,181,213,0.85)]"
               />
             </div>
             <ChampMontant
@@ -110,13 +130,52 @@ export function PageReglages() {
               aide="Le formatage suit la devise choisie, partout."
             />
           </div>
+
+          <div className="mt-5 flex flex-wrap items-end gap-4 border-t border-encre/[0.06] pt-4">
+            <div className="w-[150px]">
+              <ChampMontant
+                libelle="Jour du versement"
+                valeur={profil.versementSalaire.jour}
+                suffixe="du mois"
+                min={1}
+                max={31}
+                onChange={(v) => definirVersementSalaire({ jour: v })}
+              />
+            </div>
+
+            <div className="min-w-[260px] flex-1">
+              <p className="mb-1.5 text-[12px] font-semibold text-meta">
+                Ce salaire finance…
+              </p>
+              <Segments
+                libelle="Mois financé par le salaire"
+                valeur={profil.versementSalaire.financeMoisSuivant ? 'suivant' : 'courant'}
+                options={[
+                  { valeur: 'courant' as const, libelle: 'Le mois en cours' },
+                  { valeur: 'suivant' as const, libelle: 'Le mois suivant' },
+                ]}
+                onChange={(v) =>
+                  definirVersementSalaire({ financeMoisSuivant: v === 'suivant' })
+                }
+              />
+              <p className="mt-1.5 text-[11.5px] leading-snug text-meta">
+                {profil.versementSalaire.financeMoisSuivant
+                  ? `Touché le ${profil.versementSalaire.jour} août, votre salaire fait vivre septembre : c’est lui qui remplit le budget de septembre.`
+                  : `Touché le ${profil.versementSalaire.jour} du mois, votre salaire finance le mois où il tombe.`}
+              </p>
+            </div>
+          </div>
         </motion.section>
 
         <motion.section
           variants={elementApparition}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Frais de maintenance personnelle" />
+          <EnteteSection
+            icone={Home}
+            titre="Frais de maintenance personnelle"
+            sousTitre="Ligne à ligne, le coût de votre vie stable"
+          />
           <p className="mb-4 text-[12.5px] leading-relaxed text-meta">
             Le coût mensuel pour maintenir une vie stable : logement, nourriture, eau, électricité,
             transport, santé, assurance, télécom, obligations familiales, abonnements essentiels.
@@ -130,7 +189,7 @@ export function PageReglages() {
               return (
                 <div
                   key={depense.id}
-                  className="flex flex-wrap items-center gap-3 rounded-2xl border border-encre/[0.06] bg-papier/60 p-2.5 transition-colors duration-300 hover:bg-papier-100"
+                  className="flex flex-wrap items-center gap-3 rounded-2xl bg-papier-100/60 p-2.5 transition-colors duration-300 hover:bg-papier-100"
                 >
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-meta shadow-pilule">
                     <Icone size={18} strokeWidth={1.9} />
@@ -218,9 +277,13 @@ export function PageReglages() {
 
         <motion.section
           variants={elementApparition}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Votre méthode d’allocation" />
+          <EnteteSection
+            icone={Scale}
+            titre="Votre méthode d’allocation"
+            sousTitre="Les ratios restent verrouillés à 100 %"
+          />
           <div className="mb-5">
             <Selecteur
               libelle="Méthode"
@@ -240,16 +303,20 @@ export function PageReglages() {
               const libelles = LIBELLES_CATEGORIE[categorie]
               return (
                 <div key={categorie}>
-                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <span className="inline-flex items-center gap-2 text-[13.5px] font-bold text-encre">
                       <span className={`h-2.5 w-2.5 rounded-full ${couleurs.puce}`} />
                       {libelles.titre}
                     </span>
-                    <span className="text-[13px] font-bold tabular-nums text-encre">
-                      {formaterPourcent(profil.allocation[categorie])}
-                      <span className="ml-2 font-semibold text-meta">
+                    <span className="inline-flex items-center gap-2.5">
+                      <span className="text-[12.5px] font-semibold tabular-nums text-meta">
                         {formaterDevise(montants[categorie], profil.devise, 0)} / mois
                       </span>
+                      <CompteurPourcent
+                        valeur={profil.allocation[categorie]}
+                        libelle={libelles.titre}
+                        onChange={(v) => definirAllocation(categorie, v)}
+                      />
                     </span>
                   </div>
                   <Curseur
@@ -269,9 +336,13 @@ export function PageReglages() {
 
         <motion.section
           variants={elementApparition}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Dettes personnelles sans intérêt" />
+          <EnteteSection
+            icone={HandCoins}
+            titre="Dettes personnelles sans intérêt"
+            sousTitre="Auprès de proches, jamais de crédit bancaire"
+          />
           <p className="mb-4 text-[12.5px] leading-relaxed text-meta">
             Argent emprunté à des proches — famille, amis, collègues. Aucun intérêt n’est modélisé :
             le suivi sert à visualiser une limite d’emprunt que vous vous fixez, et à éviter le
@@ -308,9 +379,13 @@ export function PageReglages() {
       <div className="flex min-w-0 flex-col gap-5">
         <motion.section
           variants={elementLateral}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Votre sécurité" />
+          <EnteteSection
+            icone={ShieldCheck}
+            titre="Votre sécurité"
+            sousTitre="Solde du fonds d’urgence"
+          />
           <div className="flex flex-col gap-4">
             <ChampMontant
               libelle="Solde du fonds d’urgence"
@@ -333,7 +408,7 @@ export function PageReglages() {
                 valeur={profil.tauxRendementAnnuel}
                 min={0}
                 max={15}
-                couleur="#1B5F8C"
+                couleur="#3D470F"
                 onChange={definirTauxRendement}
               />
             </div>
@@ -342,9 +417,13 @@ export function PageReglages() {
 
         <motion.section
           variants={elementLateral}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Objectif du fonds d’urgence" />
+          <EnteteSection
+            icone={Target}
+            titre="Objectif du fonds d’urgence"
+            sousTitre="Six mois de maintenance"
+          />
           <p className="text-[12.5px] leading-relaxed text-meta">
             {formaterDevise(frais, profil.devise, 0)} de maintenance ×{' '}
             {MOIS_OBJECTIF_URGENCE} mois =
@@ -362,10 +441,30 @@ export function PageReglages() {
 
         <motion.section
           variants={elementLateral}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Détail de votre marge" />
+          <EnteteSection
+            icone={Gauge}
+            titre="Détail de votre marge"
+            sousTitre="Les quatre composantes du score"
+          />
           <DetailScore score={score} />
+        </motion.section>
+
+        <motion.section
+          variants={elementLateral}
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
+        >
+          <EnteteSection
+            icone={Zap}
+            titre="Confort d’affichage"
+            sousTitre="Le mouvement des pages"
+          />
+          <p className="mb-3 text-[12.5px] leading-relaxed text-meta">
+            Les animations sont douces mais présentes. Les couper rend
+            l’application instantanée, sans rien retirer de son contenu.
+          </p>
+          <BasculeAnimations />
         </motion.section>
 
         <motion.aside
@@ -378,14 +477,24 @@ export function PageReglages() {
             serveur, aucune connexion bancaire. Money Guru ne déplace pas un dirham : il montre les
             résultats prévus d’une stratégie, rien de plus.
           </p>
-          <button
-            type="button"
-            onClick={reinitialiser}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-pilule border border-white/20 px-3.5 py-2 text-[12px] font-semibold text-white/75 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/40 hover:text-white active:translate-y-0"
-          >
-            <RotateCcw size={13} />
-            Repartir des valeurs d’exemple
-          </button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={reprendreOnboarding}
+              className="inline-flex items-center gap-1.5 rounded-pilule border border-white/20 px-3.5 py-2 text-[12px] font-semibold text-white/75 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/40 hover:text-white active:translate-y-0"
+            >
+              <ListChecks size={13} />
+              Reprendre le questionnaire
+            </button>
+            <button
+              type="button"
+              onClick={reinitialiser}
+              className="inline-flex items-center gap-1.5 rounded-pilule border border-white/20 px-3.5 py-2 text-[12px] font-semibold text-white/75 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/40 hover:text-white active:translate-y-0"
+            >
+              <RotateCcw size={13} />
+              Tout effacer et recommencer
+            </button>
+          </div>
         </motion.aside>
       </div>
     </motion.div>

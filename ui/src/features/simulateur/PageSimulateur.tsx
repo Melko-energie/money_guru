@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { GitCompareArrows, Info, RotateCcw, Wand2 } from 'lucide-react'
+import { GitCompareArrows, Info, RotateCcw, Wand2 ,
+  Percent,
+  Sparkles,
+  TrendingUp,
+} from 'lucide-react'
 import { useFinances } from '../../state/finances'
 import { ChampMontant, Curseur, Segments, Selecteur } from '../../components/Champs'
 import { CourbeProjection } from '../../components/CourbeProjection'
@@ -9,7 +13,7 @@ import { ComparaisonTaux } from './ComparaisonTaux'
 import { ANNEES_CARRIERE, partGain, simuler } from '../../lib/calculs'
 import { DEVISES, formaterDevise, formaterDuree, formaterPourcent } from '../../lib/format'
 import { AVERTISSEMENT } from '../../lib/pedagogie'
-import { SCENARIOS, SIMULATION_PAR_DEFAUT } from '../../lib/donneesDemo'
+import { SCENARIOS, SIMULATION_PAR_DEFAUT } from '../../lib/definitions'
 import { conteneurCascade, elementApparition, elementLateral } from '../../lib/animations'
 import type { CodeDevise, MomentVersement, ParametresSimulation } from '../../lib/types'
 
@@ -57,7 +61,7 @@ export function PageSimulateur({
       variants={conteneurCascade}
       initial="cache"
       animate="visible"
-      className="grid gap-5 pb-2 xl:grid-cols-[minmax(0,1.62fr)_minmax(320px,1fr)]"
+      className="grid gap-5 pb-2 xl:grid-cols-[minmax(0,1fr)_minmax(300px,330px)]"
     >
       <div className="flex min-w-0 flex-col gap-5">
         <motion.section
@@ -113,7 +117,7 @@ export function PageSimulateur({
 
         <motion.section
           variants={elementApparition}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
           <EnteteSection
             titre="Vos hypothèses"
@@ -160,7 +164,7 @@ export function PageSimulateur({
                 valeur={parametres.tauxAnnuel}
                 min={0}
                 max={15}
-                couleur="#1B5F8C"
+                couleur="#3D470F"
                 onChange={(v) => onChange({ tauxAnnuel: v })}
               />
             </div>
@@ -179,7 +183,7 @@ export function PageSimulateur({
                 valeur={parametres.dureeAnnees}
                 min={1}
                 max={ANNEES_CARRIERE}
-                couleur="#3F8A3D"
+                couleur="#767D2F"
                 onChange={(v) => onChange({ dureeAnnees: v })}
               />
             </div>
@@ -205,7 +209,7 @@ export function PageSimulateur({
                   dureeAnnees: ANNEES_CARRIERE,
                 })
               }
-              className="inline-flex items-center gap-1.5 rounded-pilule border border-encre/10 bg-papier/80 px-3.5 py-2 text-[12.5px] font-semibold text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre active:translate-y-0"
+              className="inline-flex items-center gap-1.5 rounded-pilule bg-papier-100 px-3.5 py-2 text-[12.5px] font-semibold text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre active:translate-y-0"
             >
               <RotateCcw size={13} />
               Repartir de ma situation
@@ -215,15 +219,19 @@ export function PageSimulateur({
 
         <motion.section
           variants={elementApparition}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Évolution du capital" />
+          <EnteteSection
+            icone={TrendingUp}
+            titre="Évolution du capital"
+            sousTitre="Résultats bruts, hors frais et inflation"
+          />
           <CourbeProjection points={resultat.points} devise={devise} />
         </motion.section>
 
         <motion.section
           variants={elementApparition}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
           <div className="mb-4 flex items-center gap-2">
             <GitCompareArrows size={16} className="text-meta" />
@@ -246,7 +254,7 @@ export function PageSimulateur({
                 valeur={ecartTaux}
                 min={-10}
                 max={10}
-                couleur="#C77A21"
+                couleur="#A8B457"
                 onChange={setEcartTaux}
               />
             </div>
@@ -263,7 +271,7 @@ export function PageSimulateur({
                 valeur={ecartDuree}
                 min={-20}
                 max={20}
-                couleur="#6B4C8A"
+                couleur="#74B5D5"
                 onChange={setEcartDuree}
               />
             </div>
@@ -328,7 +336,11 @@ export function PageSimulateur({
 
       <div className="flex min-w-0 flex-col gap-5">
         <motion.section variants={elementLateral}>
-          <EnteteSection titre="Scénarios" />
+          <EnteteSection
+            icone={Sparkles}
+            titre="Scénarios"
+            sousTitre="Des réglages tout prêts"
+          />
           <div className="flex flex-col gap-3">
             {SCENARIOS.map((s) => (
               <motion.button
@@ -337,7 +349,7 @@ export function PageSimulateur({
                 whileHover={{ y: -3 }}
                 whileTap={{ scale: 0.985 }}
                 onClick={() => onChange(s.parametres)}
-                className="group rounded-carte border border-encre/[0.06] bg-white p-4 text-left shadow-carte transition-shadow duration-300 hover:shadow-[0_28px_60px_-28px_rgba(14,26,36,0.4)]"
+                className="group rounded-carte bg-white p-4 text-left shadow-carte ring-1 ring-encre/[0.05] transition-shadow duration-300 hover:shadow-[0_28px_60px_-28px_rgba(39, 40, 42,0.4)]"
               >
                 <span className="block text-[14.5px] font-bold text-encre">{s.titre}</span>
                 <span className="mt-0.5 block text-[12.5px] text-meta">{s.resume}</span>
@@ -355,9 +367,13 @@ export function PageSimulateur({
 
         <motion.section
           variants={elementLateral}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="3 % ou 10 % ?" />
+          <EnteteSection
+            icone={Percent}
+            titre="3 % ou 10 % ?"
+            sousTitre="Le même versement, quatre taux"
+          />
           <ComparaisonTaux parametres={parametres} devise={devise} />
         </motion.section>
 

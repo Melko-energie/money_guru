@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import App from '../App'
+import { PROFIL_DE_TEST } from '../test/profils'
 import { FournisseurAnimations } from '../state/animations'
 import { FournisseurFinances } from '../state/finances'
 import { CATEGORIES } from '../lib/calculs'
 import { cleMoisDe } from '../lib/calendrier'
 
+/**
+ * L'application démarre désormais sur un profil vide et pose ses questions.
+ * Les tests d'interface ont besoin d'un profil déjà rempli : on sème celui
+ * d'exemple, exactement comme le ferait un utilisateur ayant fini le parcours.
+ */
 function monter() {
+  window.localStorage.setItem('money-guru:profil:v2', JSON.stringify(PROFIL_DE_TEST))
   return render(
     <FournisseurAnimations>
       <FournisseurFinances>
@@ -130,7 +137,7 @@ describe('navigation entre les vues', () => {
 
     const grille = await screen.findByText('Budget prévu')
     expect(grille).toBeInTheDocument()
-    expect(screen.getByText('Réellement dépensé')).toBeInTheDocument()
+    expect(screen.getByText('Saisi ce mois')).toBeInTheDocument()
     expect(screen.getAllByText('Écart prévu / réel').length).toBeGreaterThan(0)
 
     // la case du 12 du mois affiché
@@ -234,10 +241,94 @@ describe('mes chiffres', () => {
   })
 })
 
-describe('accessibilité et garde-fous', () => {
-  it('coupe les animations à la demande', () => {
+describe('le calendrier annuel', () => {
+  it('bascule sur les douze mois et ouvre le détail d’un mois', async () => {
     monter()
-    const bascule = screen.getByTitle('Couper les animations')
+    fireEvent.click(screen.getAllByTitle('Calendrier des dépenses')[0])
+    await screen.findByText('Budget prévu')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Année' }))
+
+    // douze tuiles, la grille du mois a disparu
+    expect(await screen.findByText('Dépensé sur l’année')).toBeInTheDocument()
+    expect(screen.queryByText('Budget prévu')).toBeNull()
+    for (const m of ['Janv', 'Févr', 'Mars', 'Déc']) {
+      expect(screen.getByText(m)).toBeInTheDocument()
+    }
+
+    // le détail s'ouvre en modale
+    fireEvent.click(screen.getByText('Mars').closest('button') as HTMLElement)
+    const modale = await screen.findByRole('dialog')
+    expect(within(modale).getByText('Report entrant')).toBeInTheDocument()
+    expect(within(modale).getByText('Reste')).toBeInTheDocument()
+
+    // et renvoie vers le mois en détail
+    fireEvent.click(within(modale).getByRole('button', { name: /Ouvrir mars/ }))
+    expect(await screen.findByText('Budget prévu')).toBeInTheDocument()
+  })
+
+  it('navigue d’une année à l’autre', async () => {
+    monter()
+    fireEvent.click(screen.getAllByTitle('Calendrier des dépenses')[0])
+    await screen.findByText('Budget prévu')
+    fireEvent.click(screen.getByRole('button', { name: 'Année' }))
+
+    const anneeCourante = new Date().getFullYear()
+    expect(await screen.findByText(String(anneeCourante))).toBeInTheDocument()
+    fireEvent.click(screen.getByTitle('Année précédente'))
+    expect(screen.getByText(String(anneeCourante - 1))).toBeInTheDocument()
+  })
+})
+
+describe('le cycle complet d’une action', () => {
+  it('rembourser une dette au calendrier réduit la dette du tableau de bord', async () => {
+    monter()
+    // dette de départ du profil : 12 000
+    expect(screen.getAllByText(/12\s?000/).length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getAllByTitle('Calendrier des dépenses')[0])
+    await screen.findByText('Budget prévu')
+
+    fireEvent.click(screen.getByRole('button', { name: /^12 — / }))
+    fireEvent.change(screen.getByLabelText('Libellé court'), {
+      target: { value: 'Remboursement Karim' },
+    })
+    fireEvent.change(screen.getByLabelText('Montant'), { target: { value: '2000' } })
+    fireEvent.change(screen.getByLabelText('Catégorie'), { target: { value: 'dettes' } })
+    fireEvent.click(screen.getByText('Ajouter la dépense'))
+    await screen.findByText('Remboursement Karim')
+
+    // retour au tableau : la dette a réellement baissé
+    fireEvent.click(screen.getAllByTitle('Tableau de bord')[0])
+    expect((await screen.findAllByText(/10\s?000/)).length).toBeGreaterThan(0)
+  })
+
+  it('mettre de côté au calendrier augmente le fonds d’urgence', async () => {
+    monter()
+    fireEvent.click(screen.getAllByTitle('Calendrier des dépenses')[0])
+    await screen.findByText('Budget prévu')
+
+    fireEvent.click(screen.getByRole('button', { name: /^12 — / }))
+    fireEvent.change(screen.getByLabelText('Libellé court'), { target: { value: 'Épargne du mois' } })
+    fireEvent.change(screen.getByLabelText('Montant'), { target: { value: '1600' } })
+    fireEvent.change(screen.getByLabelText('Catégorie'), { target: { value: 'urgence' } })
+    fireEvent.click(screen.getByText('Ajouter la dépense'))
+    await screen.findByText('Épargne du mois')
+
+    // solde de départ 18 400 + 1 600 = 20 000
+    fireEvent.click(screen.getAllByTitle('Tableau de bord')[0])
+    expect((await screen.findAllByText(/20\s?000/)).length).toBeGreaterThan(0)
+  })
+})
+
+describe('accessibilité et garde-fous', () => {
+  it('coupe les animations à la demande, depuis Mes chiffres', async () => {
+    monter()
+    // le réglage a quitté le rail : il vit avec son intitulé dans « Mes chiffres »
+    expect(screen.queryByTitle('Couper les animations')).toBeNull()
+
+    fireEvent.click(screen.getAllByTitle('Mes chiffres')[0])
+    const bascule = await screen.findByTitle('Couper les animations')
     expect(bascule).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(bascule)
     expect(screen.getByTitle('Réactiver les animations')).toHaveAttribute('aria-pressed', 'false')

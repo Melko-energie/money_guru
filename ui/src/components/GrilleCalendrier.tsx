@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { Flame, Repeat } from 'lucide-react'
 import { JOURS_SEMAINE, estProjetee } from '../lib/calendrier'
-import { COULEURS_CATEGORIE, LIBELLES_CATEGORIE } from '../lib/donneesDemo'
+import { COULEURS_CATEGORIE, LIBELLES_CATEGORIE } from '../lib/definitions'
 import { formaterCompact } from '../lib/format'
 import { useAnimations } from '../state/animations'
 import type { BilanMois, CodeDevise, JourCalendrier } from '../lib/types'
@@ -77,7 +77,7 @@ export function GrilleCalendrier({
               }`}
               className={`relative flex min-h-[86px] flex-col items-start gap-1 rounded-2xl border p-2 text-left transition-colors duration-300 ${
                 selectionne
-                  ? 'border-transparent bg-encre text-white shadow-[0_14px_30px_-14px_rgba(14,26,36,0.8)]'
+                  ? 'border-transparent bg-encre text-white shadow-[0_14px_30px_-14px_rgba(39, 40, 42,0.8)]'
                   : jour.eleve
                     ? 'border-brique/30 bg-brique-tint hover:border-brique/50'
                     : 'border-encre/[0.07] bg-papier/60 hover:border-encre/20 hover:bg-white'

@@ -18,7 +18,7 @@ carrière complète.
 | Saisie | Manuelle uniquement : aucune synchronisation ni importation bancaire |
 | Devise | MAD par défaut, formatage multi-devise (EUR, USD, GBP, AED, CAD, CHF) |
 | Cible | Laptop / grand écran (≥ 1024 px) |
-| Ports | dev **6010** · backend réservé **3010** · prod Docker **6110** |
+| Ports | dev **6012** · backend réservé **3012** · prod Docker **6112** |
 
 ## Démarrer
 
@@ -34,7 +34,7 @@ npm install
 npm run dev
 ```
 
-→ http://localhost:6010 · arrêt `.\stop-all.bat` · prod nginx `.\deploy.bat` → :6110
+→ http://localhost:6012 · arrêt `.\stop-all.bat` · prod nginx `.\deploy.bat` → :6112
 
 ## Les six vues
 
@@ -122,7 +122,7 @@ npm run build
 `vite.config.ts` écoute déjà sur `0.0.0.0`. Ouvrir le port (droits admin) :
 
 ```powershell
-New-NetFirewallRule -DisplayName "Money Guru 6010" -Direction Inbound -Protocol TCP -LocalPort 6010 -Action Allow
+New-NetFirewallRule -DisplayName "Money Guru 6012" -Direction Inbound -Protocol TCP -LocalPort 6012 -Action Allow
 ```
 
 ## Arborescence

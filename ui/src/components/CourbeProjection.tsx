@@ -66,12 +66,12 @@ export function CourbeProjection({
       >
         <defs>
           <linearGradient id={`${id}-aire`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1B5F8C" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#1B5F8C" stopOpacity="0" />
+            <stop offset="0%" stopColor="#3D470F" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#3D470F" stopOpacity="0" />
           </linearGradient>
           <linearGradient id={`${id}-trait`} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#3F8A3D" />
-            <stop offset="100%" stopColor="#1B5F8C" />
+            <stop offset="0%" stopColor="#767D2F" />
+            <stop offset="100%" stopColor="#3D470F" />
           </linearGradient>
         </defs>
 
@@ -82,7 +82,7 @@ export function CourbeProjection({
             x2={LARGEUR}
             y1={MARGE + (HAUTEUR - MARGE * 2) * r}
             y2={MARGE + (HAUTEUR - MARGE * 2) * r}
-            stroke="rgba(14,26,36,0.06)"
+            stroke="rgba(39, 40, 42,0.06)"
             strokeWidth={1}
             strokeDasharray="3 7"
             vectorEffect="non-scaling-stroke"
@@ -99,7 +99,7 @@ export function CourbeProjection({
         <path
           d={cheminVerse}
           fill="none"
-          stroke="rgba(14,26,36,0.28)"
+          stroke="rgba(39, 40, 42,0.28)"
           strokeWidth={1.5}
           strokeDasharray="4 6"
           vectorEffect="non-scaling-stroke"
@@ -123,7 +123,7 @@ export function CourbeProjection({
               x2={positionActive.x}
               y1={0}
               y2={HAUTEUR}
-              stroke="rgba(14,26,36,0.16)"
+              stroke="rgba(39, 40, 42,0.16)"
               strokeWidth={1}
               vectorEffect="non-scaling-stroke"
             />
@@ -132,7 +132,7 @@ export function CourbeProjection({
               cy={positionActive.y}
               r={5}
               fill="#ffffff"
-              stroke="#1B5F8C"
+              stroke="#3D470F"
               strokeWidth={3}
               vectorEffect="non-scaling-stroke"
             />

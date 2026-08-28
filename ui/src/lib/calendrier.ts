@@ -70,6 +70,24 @@ export function libelleMois(cle: string): string {
   return libelle.charAt(0).toUpperCase() + libelle.slice(1)
 }
 
+const FORMAT_MOIS_COURT = new Intl.DateTimeFormat('fr-FR', { month: 'short' })
+
+/** « Janv. » — pour les tuiles serrées de la vue annuelle. */
+export function libelleMoisCourt(cle: string): string {
+  const { annee, mois } = decomposerMois(cle)
+  const libelle = FORMAT_MOIS_COURT.format(new Date(annee, mois, 1)).replace('.', '')
+  return libelle.charAt(0).toUpperCase() + libelle.slice(1)
+}
+
+export function anneeDeCle(cle: string): number {
+  return Number(cle.slice(0, 4))
+}
+
+/** Les douze clés de mois d'une année. */
+export function moisDeLAnnee(annee: number): string[] {
+  return Array.from({ length: 12 }, (_, i) => cleMois(annee, i))
+}
+
 export function libelleJour(cle: string): string {
   const { annee, mois } = decomposerMois(cle)
   const libelle = FORMAT_JOUR.format(new Date(annee, mois, jourDeCle(cle)))
@@ -180,18 +198,23 @@ export function ecartsParCategorie(
   allocation: Allocation,
   reelles: LigneJournal[],
   projetees: LigneJournal[],
+  /** Frais de maintenance déclarés du mois : ils sortent sans saisie. */
+  chargesFixes = 0,
 ): EcartCategorie[] {
   const budgets = montantsAlloues(revenuNet, allocation)
   const reels = totalParCategorie(reelles)
   const prevus = totalParCategorie(projetees)
 
-  return CATEGORIES.map((categorie) => ({
-    categorie,
-    prevu: budgets[categorie],
-    reel: reels[categorie],
-    projete: prevus[categorie],
-    ecart: reels[categorie] - budgets[categorie],
-  }))
+  return CATEGORIES.map((categorie) => {
+    const reel = reels[categorie] + (categorie === 'maintenance' ? chargesFixes : 0)
+    return {
+      categorie,
+      prevu: budgets[categorie],
+      reel,
+      projete: prevus[categorie],
+      ecart: reel - budgets[categorie],
+    }
+  })
 }
 
 /**
@@ -203,6 +226,7 @@ export function construireBilan(
   moisCible: string,
   revenuNet: number,
   allocation: Allocation,
+  chargesFixes = 0,
 ): BilanMois {
   const { annee, mois } = decomposerMois(moisCible)
   const reelles = depensesDuMois(journal, moisCible)
@@ -264,7 +288,7 @@ export function construireBilan(
 
   const totalReel = totauxReels.reduce((s, v) => s + v, 0)
   const totalProjete = projetees.reduce((s, l) => s + l.montant, 0)
-  const ecarts = ecartsParCategorie(revenuNet, allocation, reelles, projetees)
+  const ecarts = ecartsParCategorie(revenuNet, allocation, reelles, projetees, chargesFixes)
 
   return {
     cle: moisCible,
@@ -272,6 +296,8 @@ export function construireBilan(
     mois,
     jours,
     totalReel,
+    chargesFixes,
+    totalSorties: totalReel + chargesFixes,
     totalProjete,
     totalPrevu: ecarts.reduce((s, e) => s + e.prevu, 0),
     ecarts,

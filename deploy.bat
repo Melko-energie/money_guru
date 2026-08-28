@@ -7,7 +7,7 @@ echo.
 docker compose up -d --build
 if errorlevel 1 goto :echec
 echo.
-echo  PROD : http://localhost:6110
+echo  PROD : http://localhost:6112
 echo.
 pause
 exit /b 0

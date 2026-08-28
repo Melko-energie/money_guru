@@ -93,9 +93,10 @@ export function bilanMethode(
   profil: ProfilFinancier,
   cle: MethodeAllocation,
   referenceCapital?: number,
+  revenu = profil.revenuNet,
 ): BilanMethode {
   const allocation = ratiosMethode(cle, profil.allocation)
-  const montants = montantsAlloues(profil.revenuNet, allocation)
+  const montants = montantsAlloues(revenu, allocation)
   const objectif = objectifFondsUrgence(profil.depenses)
 
   const projection = simuler(
@@ -128,7 +129,7 @@ export function bilanMethode(
     moisPourSolderDette: moisPourSolderDette(dettesProjetees),
     capitalCarriere: projection.capitalFinal,
     gainCarriere: projection.gainBrut,
-    score: scoreMarge({ ...profil, allocation }).valeur,
+    score: scoreMarge({ ...profil, allocation }, revenu).valeur,
     ecartCapital:
       referenceCapital === undefined ? 0 : projection.capitalFinal - referenceCapital,
   }
@@ -138,7 +139,10 @@ export function bilanMethode(
  * Compare toutes les méthodes à la stratégie en cours.
  * `ecartCapital` chiffre le coût — ou le gain — d'un changement (context §7.2).
  */
-export function comparerMethodes(profil: ProfilFinancier): BilanMethode[] {
-  const reference = bilanMethode(profil, profil.methode)
-  return METHODES.map((m) => bilanMethode(profil, m.cle, reference.capitalCarriere))
+export function comparerMethodes(
+  profil: ProfilFinancier,
+  revenu = profil.revenuNet,
+): BilanMethode[] {
+  const reference = bilanMethode(profil, profil.methode, undefined, revenu)
+  return METHODES.map((m) => bilanMethode(profil, m.cle, reference.capitalCarriere, revenu))
 }

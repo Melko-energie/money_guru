@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { CalendarClock, HandCoins, ShieldAlert, Sliders } from 'lucide-react'
+import { CalendarClock, HandCoins, ShieldAlert, ArrowUpRight } from 'lucide-react'
 import { useFinances } from '../../state/finances'
 import { useAnimations } from '../../state/animations'
 import { BarreProgression } from '../../components/BarreProgression'
@@ -31,7 +31,7 @@ export function BandeauDette({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
   return (
     <motion.section
       variants={elementApparition}
-      className="relative overflow-hidden rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+      className="relative overflow-hidden rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
     >
       <div
         className={`pointer-events-none absolute -bottom-20 -right-16 h-56 w-56 rounded-full blur-3xl ${
@@ -53,9 +53,7 @@ export function BandeauDette({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-[17px] font-bold leading-none text-encre">
-                Dettes personnelles
-              </h3>
+              <h3 className="text-[17px] font-bold leading-none text-encre">Vos dettes</h3>
               <span className="rounded-pilule bg-papier-100 px-2.5 py-1 text-[10.5px] font-bold text-meta">
                 Sans intérêt · auprès de proches
               </span>
@@ -102,9 +100,9 @@ export function BandeauDette({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
             type="button"
             onClick={() => onNaviguer('reglages')}
             title="Ajuster mes dettes"
-            className="grid h-11 w-11 place-items-center rounded-full border border-encre/[0.09] bg-papier/80 text-encre/60 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:text-encre hover:shadow-md active:translate-y-0 active:scale-95"
+            className="grid h-11 w-11 place-items-center rounded-full bg-papier-100 text-encre/60 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:text-encre hover:shadow-md active:translate-y-0 active:scale-95"
           >
-            <Sliders size={17} strokeWidth={1.9} />
+            <ArrowUpRight size={17} strokeWidth={2} />
             <span className="sr-only">Ajuster mes dettes</span>
           </button>
         </div>

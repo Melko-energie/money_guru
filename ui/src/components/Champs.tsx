@@ -7,7 +7,7 @@ export function Curseur({
   min,
   max,
   pas = 1,
-  couleur = '#0E1A24',
+  couleur = '#27282A',
   onChange,
   libelle,
 }: {
@@ -31,9 +31,73 @@ export function Curseur({
       onChange={(e) => onChange(Number(e.target.value))}
       className="curseur"
       style={{
-        background: `linear-gradient(to right, ${couleur} 0%, ${couleur} ${ratio}%, rgba(14,26,36,0.1) ${ratio}%, rgba(14,26,36,0.1) 100%)`,
+        background: `linear-gradient(to right, ${couleur} 0%, ${couleur} ${ratio}%, rgba(39, 40, 42,0.1) ${ratio}%, rgba(39, 40, 42,0.1) 100%)`,
       }}
     />
+  )
+}
+
+/**
+ * Réglage fin d'un pourcentage : on tape la valeur exacte, ou on l'ajuste
+ * point par point. Le curseur donne le geste rapide, ce compteur donne la
+ * précision — viser 23 % à la souris sur une piste de 100 est illusoire.
+ */
+export function CompteurPourcent({
+  valeur,
+  onChange,
+  libelle,
+  pas = 1,
+}: {
+  valeur: number
+  onChange: (v: number) => void
+  /** Nom lisible du poste réglé, pour l'étiquette d'accessibilité. */
+  libelle: string
+  pas?: number
+}) {
+  const borner = (v: number) => Math.min(100, Math.max(0, Math.round(v)))
+  const classeBouton =
+    'grid h-8 w-8 shrink-0 place-items-center rounded-full text-[15px] font-bold leading-none text-meta transition-colors duration-200 hover:bg-papier-100 hover:text-encre disabled:opacity-30 disabled:hover:bg-transparent'
+
+  return (
+    <div className="inline-flex items-center gap-0.5 rounded-pilule border border-encre/[0.09] bg-white px-1 py-1">
+      <button
+        type="button"
+        onClick={() => onChange(borner(valeur - pas))}
+        disabled={valeur <= 0}
+        title={`Baisser ${libelle} de ${pas} point`}
+        className={classeBouton}
+      >
+        <span aria-hidden>−</span>
+        <span className="sr-only">Baisser {libelle}</span>
+      </button>
+
+      <div className="flex items-center">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={100}
+          step={pas}
+          value={valeur}
+          aria-label={`Part de ${libelle} en pourcent`}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => onChange(borner(Number(e.target.value)))}
+          className="w-11 bg-transparent text-right text-[14px] font-bold tabular-nums text-encre outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <span className="pl-0.5 pr-1 text-[12px] font-semibold text-meta">%</span>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onChange(borner(valeur + pas))}
+        disabled={valeur >= 100}
+        title={`Monter ${libelle} de ${pas} point`}
+        className={classeBouton}
+      >
+        <span aria-hidden>+</span>
+        <span className="sr-only">Monter {libelle}</span>
+      </button>
+    </div>
   )
 }
 
@@ -61,7 +125,7 @@ export function ChampMontant({
       <label htmlFor={id} className="mb-1.5 block text-[12px] font-semibold text-meta">
         {libelle}
       </label>
-      <div className="group relative flex items-center rounded-2xl border border-encre/[0.09] bg-white transition-all duration-300 focus-within:border-saphir/45 focus-within:shadow-[0_16px_36px_-24px_rgba(27,95,140,0.75)]">
+      <div className="group relative flex items-center rounded-2xl border border-encre/[0.09] bg-white transition-all duration-300 focus-within:border-ciel focus-within:shadow-[0_16px_36px_-24px_rgba(116,181,213,0.85)]">
         <input
           id={id}
           type="number"
@@ -103,7 +167,7 @@ export function Selecteur<T extends string>({
       <label htmlFor={id} className="mb-1.5 block text-[12px] font-semibold text-meta">
         {libelle}
       </label>
-      <div className="relative flex items-center rounded-2xl border border-encre/[0.09] bg-white transition-all duration-300 focus-within:border-saphir/45 focus-within:shadow-[0_16px_36px_-24px_rgba(27,95,140,0.75)]">
+      <div className="relative flex items-center rounded-2xl border border-encre/[0.09] bg-white transition-all duration-300 focus-within:border-ciel focus-within:shadow-[0_16px_36px_-24px_rgba(116,181,213,0.85)]">
         <select
           id={id}
           value={valeur}
@@ -139,7 +203,7 @@ export function Segments<T extends string>({
     <div
       role="group"
       aria-label={libelle}
-      className="inline-flex rounded-pilule border border-encre/[0.08] bg-papier/80 p-1"
+      className="inline-flex rounded-pilule border border-encre/[0.08] bg-papier-100 p-1"
     >
       {options.map((o) => (
         <button
@@ -149,7 +213,7 @@ export function Segments<T extends string>({
           aria-pressed={valeur === o.valeur}
           className={`rounded-pilule px-3.5 py-1.5 text-[12.5px] font-semibold transition-all duration-300 ${
             valeur === o.valeur
-              ? 'bg-encre text-white shadow-[0_8px_20px_-10px_rgba(14,26,36,0.7)]'
+              ? 'bg-encre text-white shadow-[0_8px_20px_-10px_rgba(39, 40, 42,0.7)]'
               : 'text-meta hover:text-encre'
           }`}
         >

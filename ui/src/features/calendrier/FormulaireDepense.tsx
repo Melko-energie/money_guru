@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, Plus, X } from 'lucide-react'
 import { ChampMontant, Selecteur } from '../../components/Champs'
 import { CATEGORIES } from '../../lib/calculs'
-import { LIBELLES_CATEGORIE } from '../../lib/donneesDemo'
+import { LIBELLES_CATEGORIE } from '../../lib/definitions'
 import type { Categorie, CodeDevise, DepenseDatee } from '../../lib/types'
 
 export type BrouillonDepense = Omit<DepenseDatee, 'id'>
@@ -76,7 +76,7 @@ export function FormulaireDepense({
             maxLength={48}
             placeholder="Courses, restaurant, essence…"
             onChange={(e) => setLibelle(e.target.value)}
-            className="h-11 w-full rounded-2xl border border-encre/[0.09] bg-white px-3.5 text-[14px] font-semibold text-encre outline-none transition-all duration-300 placeholder:font-normal placeholder:text-meta focus:border-saphir/45 focus:shadow-[0_16px_36px_-24px_rgba(27,95,140,0.75)]"
+            className="h-11 w-full rounded-2xl border border-encre/[0.09] bg-white px-3.5 text-[14px] font-semibold text-encre outline-none transition-all duration-300 placeholder:font-normal placeholder:text-meta focus:border-ciel focus:shadow-[0_16px_36px_-24px_rgba(116,181,213,0.85)]"
           />
         </div>
 
@@ -108,7 +108,7 @@ export function FormulaireDepense({
             value={note}
             maxLength={120}
             onChange={(e) => setNote(e.target.value)}
-            className="h-11 w-full rounded-2xl border border-encre/[0.09] bg-white px-3.5 text-[13.5px] text-encre outline-none transition-all duration-300 focus:border-saphir/45"
+            className="h-11 w-full rounded-2xl border border-encre/[0.09] bg-white px-3.5 text-[13.5px] text-encre outline-none transition-all duration-300 focus:border-ciel"
           />
         </div>
       </div>
@@ -119,7 +119,7 @@ export function FormulaireDepense({
             type="checkbox"
             checked={recurrent}
             onChange={(e) => setRecurrent(e.target.checked)}
-            className="h-4 w-4 cursor-pointer accent-[#1B5F8C]"
+            className="h-4 w-4 cursor-pointer accent-[#3D470F]"
           />
           Récurrente — la projeter sur les mois suivants
         </label>
@@ -138,7 +138,7 @@ export function FormulaireDepense({
           <button
             type="submit"
             disabled={!valide}
-            className="inline-flex items-center gap-1.5 rounded-pilule bg-encre px-4 py-2 text-[12.5px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,26,36,0.9)] transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 disabled:opacity-35 disabled:shadow-none disabled:hover:translate-y-0"
+            className="inline-flex items-center gap-1.5 rounded-pilule bg-encre px-4 py-2 text-[12.5px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(39, 40, 42,0.9)] transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 disabled:opacity-35 disabled:shadow-none disabled:hover:translate-y-0"
           >
             {initial ? <Check size={13} /> : <Plus size={13} />}
             {initial ? 'Enregistrer' : 'Ajouter la dépense'}

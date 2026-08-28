@@ -6,16 +6,16 @@ echo  ============================================================
 echo   Money Guru - demarrage complet
 echo  ============================================================
 echo.
-echo [1/3] Prod Docker 6110 - optionnel...
+echo [1/3] Prod Docker 6112 - optionnel...
 where docker >nul 2>&1 && if exist "%~dp0docker-compose.yml" docker compose up -d >nul 2>&1
-echo [2/3] Backend dev 3010 - si present...
-if exist "%~dp0server\package.json" start "Money Guru BACKEND 3010" cmd /k "cd /d "%~dp0server" && npm run dev"
-echo [3/3] Frontend dev 6010...
-start "Money Guru VITE 6010" cmd /k "cd /d "%~dp0ui" && npm run dev"
+echo [2/3] Backend dev 3012 - si present...
+if exist "%~dp0server\package.json" start "Money Guru BACKEND 3012" cmd /k "cd /d "%~dp0server" && npm run dev"
+echo [3/3] Frontend dev 6012...
+start "Money Guru VITE 6012" cmd /k "cd /d "%~dp0ui" && npm run dev"
 echo.
-echo  DEV  : http://localhost:6010
+echo  DEV  : http://localhost:6012
 echo  Arret : .\stop-all.bat
 echo.
 timeout /t 4 /nobreak >nul
-start "" "http://localhost:6010"
+start "" "http://localhost:6012"
 exit /b 0

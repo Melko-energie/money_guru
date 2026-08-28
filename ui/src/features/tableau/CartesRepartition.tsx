@@ -11,9 +11,11 @@ import {
   Target,
 } from 'lucide-react'
 import { useFinances } from '../../state/finances'
+import { useEstMobile } from '../../state/media'
+import { ListePostes } from './ListePostes'
 import { useAnimations } from '../../state/animations'
 import { Curseur } from '../../components/Champs'
-import { COULEURS_CATEGORIE, LIBELLES_CATEGORIE } from '../../lib/donneesDemo'
+import { COULEURS_CATEGORIE, LIBELLES_CATEGORIE } from '../../lib/definitions'
 import { formaterDevise, formaterPourcent } from '../../lib/format'
 import { CATEGORIES } from '../../lib/calculs'
 import { elementApparition, survolCarte } from '../../lib/animations'
@@ -35,6 +37,7 @@ const ICONES: Record<Categorie, typeof Home> = {
 export function CartesRepartition() {
   const { profil, montants, frais, definirAllocation } = useFinances()
   const { animations } = useAnimations()
+  const mobile = useEstMobile()
   const piste = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState(0)
 
@@ -44,6 +47,9 @@ export function CartesRepartition() {
     const pas = el.clientWidth * 0.8
     el.scrollBy({ left: sens * pas, behavior: animations ? 'smooth' : 'auto' })
   }
+
+  // le carrousel et son curseur horizontal se disputent le même geste au doigt
+  if (mobile) return <ListePostes />
 
   return (
     <motion.div variants={elementApparition} className="relative">

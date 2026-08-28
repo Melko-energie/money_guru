@@ -5,7 +5,7 @@ import { useFinances } from '../../state/finances'
 import { Anneau } from '../../components/Anneau'
 import { ChampMontant } from '../../components/Champs'
 import { EnteteSection } from '../../components/EnteteSection'
-import { LIBELLES_CAPITAL } from '../../lib/donneesDemo'
+import { LIBELLES_CAPITAL } from '../../lib/definitions'
 import { formaterCompact, formaterDevise, formaterRatio } from '../../lib/format'
 import { conteneurCascade, elementApparition, elementLateral } from '../../lib/animations'
 import type { CategorieCapital } from '../../lib/types'
@@ -46,7 +46,7 @@ export function PagePatrimoine() {
       variants={conteneurCascade}
       initial="cache"
       animate="visible"
-      className="grid gap-5 pb-2 xl:grid-cols-[minmax(0,1.62fr)_minmax(320px,1fr)]"
+      className="grid gap-5 pb-2 xl:grid-cols-[minmax(0,1fr)_minmax(300px,330px)]"
     >
       <div className="flex min-w-0 flex-col gap-5">
         <motion.section
@@ -76,9 +76,13 @@ export function PagePatrimoine() {
 
         <motion.section
           variants={elementApparition}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Vos classes de patrimoine" />
+          <EnteteSection
+            icone={Wallet}
+            titre="Vos classes de patrimoine"
+            sousTitre="Mobilisable d’un côté, biens d’usage de l’autre"
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             {CLASSES.map((cle) => {
@@ -173,7 +177,7 @@ export function PagePatrimoine() {
 
         <motion.aside
           variants={elementLateral}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
           <h3 className="text-[13.5px] font-bold text-encre">Pourquoi cette découpe</h3>
           <p className="mt-2 text-[12px] leading-relaxed text-meta">

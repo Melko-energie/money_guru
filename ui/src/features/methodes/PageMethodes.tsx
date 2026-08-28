@@ -1,9 +1,13 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowRight, Check, Scale, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowRight, Check, Scale, TrendingDown, TrendingUp ,
+  BookOpen,
+  PieChart,
+} from 'lucide-react'
 import { useFinances } from '../../state/finances'
+import { Depliable } from '../../components/Depliable'
 import { EnteteSection } from '../../components/EnteteSection'
-import { COULEURS_CATEGORIE, LIBELLES_CATEGORIE } from '../../lib/donneesDemo'
+import { COULEURS_CATEGORIE, LIBELLES_CATEGORIE } from '../../lib/definitions'
 import { CATEGORIES } from '../../lib/calculs'
 import { METHODES, comparerMethodes, ficheMethode } from '../../lib/methodes'
 import { formaterCompact, formaterDevise, formaterPourcent } from '../../lib/format'
@@ -32,8 +36,8 @@ function BandeAllocation({ allocation }: { allocation: Record<string, number> })
 }
 
 export function PageMethodes({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
-  const { profil, definirMethode } = useFinances()
-  const bilans = useMemo(() => comparerMethodes(profil), [profil])
+  const { profil, revenuMois, definirMethode } = useFinances()
+  const bilans = useMemo(() => comparerMethodes(profil, revenuMois), [profil])
   const courant = bilans.find((b) => b.methode === profil.methode)
   const meilleur = bilans.reduce((a, b) => (b.capitalCarriere > a.capitalCarriere ? b : a))
   const noteRatios = note('ratios-reperes')
@@ -43,7 +47,7 @@ export function PageMethodes({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
       variants={conteneurCascade}
       initial="cache"
       animate="visible"
-      className="grid gap-5 pb-2 xl:grid-cols-[minmax(0,1.62fr)_minmax(320px,1fr)]"
+      className="grid gap-5 pb-2 xl:grid-cols-[minmax(0,1fr)_minmax(300px,330px)]"
     >
       <div className="flex min-w-0 flex-col gap-5">
         <motion.section
@@ -72,7 +76,11 @@ export function PageMethodes({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
         </motion.section>
 
         <motion.section variants={elementApparition}>
-          <EnteteSection titre="Les cinq stratégies" />
+          <EnteteSection
+            icone={Scale}
+            titre="Les cinq stratégies"
+            sousTitre="Projetées sur vos chiffres réels"
+          />
 
           <div className="flex flex-col gap-3">
             {bilans.map((bilan) => {
@@ -84,7 +92,7 @@ export function PageMethodes({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
                 <motion.article
                   key={bilan.methode}
                   whileHover={{ y: -3 }}
-                  className={`rounded-carte border bg-white p-5 shadow-carte transition-shadow duration-300 hover:shadow-[0_28px_60px_-28px_rgba(14,26,36,0.4)] ${
+                  className={`rounded-carte bg-white p-5 shadow-carte ring-1 transition-shadow duration-300 hover:shadow-[0_28px_60px_-28px_rgba(39, 40, 42,0.4)] ${
                     actuelle ? 'border-encre/25' : 'border-encre/[0.06]'
                   }`}
                 >
@@ -113,7 +121,7 @@ export function PageMethodes({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
                       <button
                         type="button"
                         onClick={() => definirMethode(bilan.methode)}
-                        className="group inline-flex shrink-0 items-center gap-1.5 rounded-pilule border border-encre/10 bg-papier/80 px-3.5 py-2 text-[12px] font-semibold text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre active:translate-y-0"
+                        className="group inline-flex shrink-0 items-center gap-1.5 rounded-pilule bg-papier-100 px-3.5 py-2 text-[12px] font-semibold text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre active:translate-y-0"
                       >
                         Adopter
                         <ArrowRight
@@ -195,25 +203,33 @@ export function PageMethodes({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
       <div className="flex min-w-0 flex-col gap-5">
         <motion.section
           variants={elementLateral}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Ce que dit chaque méthode" />
-          <div className="flex flex-col gap-4">
+          <EnteteSection
+            icone={BookOpen}
+            titre="Ce que dit chaque méthode"
+            sousTitre="Cliquez un titre pour lire"
+          />
+          <div className="flex flex-col divide-y divide-encre/[0.06]">
             {METHODES.map((m) => (
-              <article key={m.cle} className="carte-douce p-4">
-                <h3 className="text-[13.5px] font-bold text-encre">{m.titre}</h3>
-                <p className="mt-0.5 text-[11.5px] font-semibold text-meta">{m.promesse}</p>
-                <p className="mt-2 text-[12px] leading-relaxed text-meta">{m.description}</p>
-              </article>
+              <div key={m.cle} className="py-3 first:pt-0 last:pb-0">
+                <Depliable titre={m.titre} aide={m.promesse}>
+                  <p className="text-[12px] leading-relaxed text-meta">{m.description}</p>
+                </Depliable>
+              </div>
             ))}
           </div>
         </motion.section>
 
         <motion.section
           variants={elementLateral}
-          className="rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte"
+          className="rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
         >
-          <EnteteSection titre="Répartition actuelle" />
+          <EnteteSection
+            icone={PieChart}
+            titre="Répartition actuelle"
+            sousTitre="Vos six parts du revenu net"
+          />
           <ul className="flex flex-col gap-2.5">
             {CATEGORIES.map((c) => (
               <li key={c} className="flex items-center justify-between gap-3">
@@ -230,7 +246,7 @@ export function PageMethodes({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
           <button
             type="button"
             onClick={() => onNaviguer('reglages')}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-pilule border border-encre/10 bg-papier/80 px-3.5 py-2 text-[12px] font-semibold text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre active:translate-y-0"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-pilule bg-papier-100 px-3.5 py-2 text-[12px] font-semibold text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre active:translate-y-0"
           >
             Ajuster mes ratios
             <ArrowRight size={13} />
@@ -242,8 +258,13 @@ export function PageMethodes({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
             variants={elementLateral}
             className="rounded-carte bg-encre p-5 text-white shadow-carte"
           >
-            <p className="text-[13px] font-bold">{noteRatios.titre}</p>
-            <p className="mt-2 text-[12px] leading-relaxed text-white/60">{noteRatios.texte}</p>
+            <Depliable
+              titre={noteRatios.titre}
+              classeTitre="text-white"
+              classeAide="text-white/50"
+            >
+              <p className="text-[12px] leading-relaxed text-white/60">{noteRatios.texte}</p>
+            </Depliable>
           </motion.aside>
         ) : null}
       </div>

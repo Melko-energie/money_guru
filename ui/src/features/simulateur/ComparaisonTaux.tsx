@@ -4,7 +4,7 @@ import { formaterCompact, formaterDevise } from '../../lib/format'
 import type { CodeDevise, ParametresSimulation } from '../../lib/types'
 
 const TAUX_COMPARES = [3, 5, 7, 10]
-const TEINTES = ['#9AA6AD', '#6FA86D', '#1B5F8C', '#C77A21']
+const TEINTES = ['#A9B2B6', '#74B5D5', '#767D2F', '#2F370E']
 
 /** Montre côte à côte ce que change le taux, toutes choses égales par ailleurs. */
 export function ComparaisonTaux({

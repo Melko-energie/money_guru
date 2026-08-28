@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { CalendarClock, PartyPopper, ShieldCheck, Sliders } from 'lucide-react'
+import { CalendarClock, PartyPopper, ShieldCheck, ArrowUpRight } from 'lucide-react'
 import { useFinances } from '../../state/finances'
 import { useAnimations } from '../../state/animations'
 import { BarreProgression } from '../../components/BarreProgression'
@@ -7,7 +7,7 @@ import { Selecteur } from '../../components/Champs'
 import { formaterDevise, formaterNombre, formaterPourcent } from '../../lib/format'
 import { formaterEcheance } from '../../lib/pedagogie'
 import { MOIS_OBJECTIF_URGENCE } from '../../lib/calculs'
-import { LIBELLES_CATEGORIE } from '../../lib/donneesDemo'
+import { LIBELLES_CATEGORIE } from '../../lib/definitions'
 import { elementApparition } from '../../lib/animations'
 import type { ProfilFinancier, Vue } from '../../lib/types'
 
@@ -27,6 +27,7 @@ export function BandeauFondsUrgence({ onNaviguer }: { onNaviguer: (v: Vue) => vo
     paliers,
     urgenceAtteinte,
     definirRedirection,
+    appliquerRedirection,
   } = useFinances()
   const { animations } = useAnimations()
 
@@ -39,7 +40,7 @@ export function BandeauFondsUrgence({ onNaviguer }: { onNaviguer: (v: Vue) => vo
   return (
     <motion.section
       variants={elementApparition}
-      className="relative overflow-hidden rounded-carte border border-encre/[0.06] bg-white p-5 shadow-carte sm:p-6"
+      className="relative overflow-hidden rounded-carte bg-white p-5 shadow-carte ring-1 ring-encre/[0.05]"
     >
       <div
         className={`pointer-events-none absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-foret/10 blur-3xl ${
@@ -55,7 +56,7 @@ export function BandeauFondsUrgence({ onNaviguer }: { onNaviguer: (v: Vue) => vo
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-[17px] font-bold leading-none text-encre">Fonds d’urgence</h3>
+              <h3 className="text-[17px] font-bold leading-none text-encre">Votre sécurité</h3>
               <span className="rounded-pilule bg-foret-tint px-2.5 py-1 text-[10.5px] font-bold text-foret-deep">
                 Objectif {MOIS_OBJECTIF_URGENCE} mois de maintenance
               </span>
@@ -102,9 +103,9 @@ export function BandeauFondsUrgence({ onNaviguer }: { onNaviguer: (v: Vue) => vo
             type="button"
             onClick={() => onNaviguer('reglages')}
             title="Ajuster mes montants"
-            className="grid h-11 w-11 place-items-center rounded-full border border-encre/[0.09] bg-papier/80 text-encre/60 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:text-encre hover:shadow-md active:translate-y-0 active:scale-95"
+            className="grid h-11 w-11 place-items-center rounded-full bg-papier-100 text-encre/60 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:text-encre hover:shadow-md active:translate-y-0 active:scale-95"
           >
-            <Sliders size={17} strokeWidth={1.9} />
+            <ArrowUpRight size={17} strokeWidth={2} />
             <span className="sr-only">Ajuster mes montants</span>
           </button>
         </div>
@@ -124,13 +125,24 @@ export function BandeauFondsUrgence({ onNaviguer }: { onNaviguer: (v: Vue) => vo
             Objectif atteint. Les {formaterDevise(montants.urgence, profil.devise, 0)} mensuels
             n’ont plus de raison d’alimenter ce fonds : choisissez leur nouvelle destination.
           </p>
-          <div className="w-full sm:w-[260px]">
-            <Selecteur
-              libelle="Rediriger cette allocation vers"
-              valeur={profil.redirectionApresUrgence}
-              options={CIBLES.map((c) => ({ valeur: c, libelle: LIBELLES_CATEGORIE[c].titre }))}
-              onChange={definirRedirection}
-            />
+          <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto">
+            <div className="min-w-[220px] flex-1 sm:w-[240px] sm:flex-none">
+              <Selecteur
+                libelle="Rediriger cette allocation vers"
+                valeur={profil.redirectionApresUrgence}
+                options={CIBLES.map((c) => ({ valeur: c, libelle: LIBELLES_CATEGORIE[c].titre }))}
+                onChange={definirRedirection}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={appliquerRedirection}
+              disabled={montants.urgence <= 0}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-pilule bg-encre px-4 py-3 text-[12.5px] font-bold text-white transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 disabled:opacity-35 disabled:hover:translate-y-0"
+            >
+              Appliquer
+              <ArrowUpRight size={14} />
+            </button>
           </div>
         </div>
       ) : null}
