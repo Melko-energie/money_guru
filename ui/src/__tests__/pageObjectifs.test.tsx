@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import App from '../App'
 import { PROFIL_DE_TEST } from '../test/profils'
@@ -406,5 +406,116 @@ describe('une période partagée par toutes les vues', () => {
       JSON.parse(window.localStorage.getItem('money-guru:profil:v2') ?? '{}').mois[cleMoisDe()]
         .fraisMaintenance,
     ).toBe(9000)
+  })
+})
+
+/**
+ * Parité mobile : tout ce qui existe sur grand écran doit rester atteignable
+ * au téléphone. On force la borne `sm` de Tailwind pour monter réellement la
+ * mise en page téléphone, pas une version rétrécie de celle du bureau.
+ */
+describe('au téléphone, rien n’est perdu', () => {
+  const vraiMatchMedia = window.matchMedia
+
+  const forcerMobile = () => {
+    window.matchMedia = vi.fn().mockImplementation((requete: string) => ({
+      matches: requete.includes('max-width: 639px'),
+      media: requete,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia
+  }
+
+  afterEach(() => {
+    window.matchMedia = vraiMatchMedia
+  })
+
+  it('remplace le tableau annuel par une liste, sans défilement latéral', async () => {
+    forcerMobile()
+    monter()
+    fireEvent.click(screen.getAllByTitle('Suivi mensuel')[0])
+    await screen.findByText('La chaîne des mois')
+
+    // le tableau large du bureau n'est pas monté
+    expect(document.querySelector('table')).toBeNull()
+    // les douze mois restent saisissables, salaire et frais
+    const annee = Number(cleMoisDe().slice(0, 4))
+    expect(screen.getAllByLabelText(new RegExp(`^Salaire de .+ ${annee}$`))).toHaveLength(12)
+    expect(screen.getAllByLabelText(new RegExp(`^Frais de .+ ${annee}$`))).toHaveLength(12)
+  })
+
+  it('garde la saisie du mois affiché — salaire et frais', async () => {
+    forcerMobile()
+    monter()
+    fireEvent.click(screen.getAllByTitle('Suivi mensuel')[0])
+    await screen.findByText('La chaîne des mois')
+
+    expect(screen.getByLabelText('Revenu réellement perçu ce mois')).toBeInTheDocument()
+    expect(screen.getByLabelText('Frais de maintenance du mois')).toBeInTheDocument()
+  })
+
+  it('laisse créer un objectif au doigt', async () => {
+    forcerMobile()
+    monter()
+    fireEvent.click(screen.getAllByTitle('Mes objectifs')[0])
+    await screen.findByText('Nouvel objectif')
+
+    fireEvent.change(screen.getByLabelText('Quoi'), { target: { value: 'Une moto' } })
+    fireEvent.change(screen.getByLabelText('Budget visé'), { target: { value: '30000' } })
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter cet objectif/ }))
+
+    expect(screen.getByRole('heading', { name: 'Une moto' })).toBeInTheDocument()
+    expect(screen.getByText('Les bonnes pratiques')).toBeInTheDocument()
+  })
+
+  it('garde le réglage du versement et les compteurs de parts', async () => {
+    forcerMobile()
+    monter()
+    fireEvent.click(screen.getAllByTitle('Mes chiffres')[0])
+    await screen.findByLabelText('Jour du versement')
+
+    expect(screen.getByRole('button', { name: 'Le mois suivant' })).toBeInTheDocument()
+    for (const c of CATEGORIES) {
+      expect(
+        screen.getByLabelText(`Part de ${LIBELLES_CATEGORIE[c].titre} en pourcent`),
+      ).toBeInTheDocument()
+    }
+  })
+
+  it('règle une part au point près depuis la feuille des postes', async () => {
+    forcerMobile()
+    monter()
+
+    const liste = screen.getByRole('list', { name: 'Vos six postes' })
+    fireEvent.click(within(liste).getByRole('button', { name: /Fun money/ }))
+
+    const feuille = screen.getByRole('dialog', { name: 'Fun money' })
+    const compteur = within(feuille).getByLabelText('Part de Fun money en pourcent')
+    fireEvent.change(compteur, { target: { value: '23' } })
+    expect(within(feuille).getByText('23 %')).toBeInTheDocument()
+  })
+
+  it('donne accès aux huit vues depuis la feuille menu', () => {
+    forcerMobile()
+    monter()
+    fireEvent.click(screen.getByRole('button', { name: 'Toutes les vues' }))
+    const feuille = screen.getByRole('dialog', { name: 'Toutes les vues' })
+
+    for (const titre of [
+      'Tableau de bord',
+      'Calendrier des dépenses',
+      'Suivi mensuel',
+      'Comparer les méthodes',
+      'Mes objectifs',
+      'Simulateur « et si… »',
+      'Mon patrimoine',
+      'Mes chiffres',
+    ]) {
+      expect(within(feuille).getByText(titre)).toBeInTheDocument()
+    }
   })
 })

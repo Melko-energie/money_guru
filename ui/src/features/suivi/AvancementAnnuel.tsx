@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react'
 import { useFinances } from '../../state/finances'
+import { useEstMobile } from '../../state/media'
 import { Carte } from '../../components/Carte'
 import { Chiffre } from '../../components/Chiffre'
 import { cleMoisDe, decalerMois, libelleMoisCourt } from '../../lib/calendrier'
@@ -28,6 +29,7 @@ export function AvancementAnnuel() {
     definirRevenuPercu,
     definirFraisMois,
   } = useFinances()
+  const mobile = useEstMobile()
 
   const lignes = useMemo(() => cumulAnnee(profil, annee), [profil, annee])
   const devise = profil.devise
@@ -88,6 +90,111 @@ export function AvancementAnnuel() {
         />
       </div>
 
+      {mobile ? (
+        <ul className="mt-5 flex flex-col gap-2 border-t border-encre/[0.06] pt-4">
+          {lignes.map((l) => {
+            const actif = l.cle === moisAffiche
+            return (
+              <li
+                key={l.cle}
+                className={`rounded-2xl p-3 ring-1 transition-colors duration-200 ${
+                  actif ? 'bg-olive-tint/60 ring-olive/25' : 'bg-papier-100/50 ring-encre/[0.05]'
+                }`}
+              >
+                <div className="mb-2 flex items-baseline justify-between gap-2">
+                  <span className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => definirMoisAffiche(l.cle)}
+                      className="text-[13.5px] font-bold text-encre underline-offset-2 active:underline"
+                    >
+                      {libelleMoisCourt(l.cle)}
+                    </button>
+                    {l.cle === moisCourant ? (
+                      <span className="ml-1.5 text-[10.5px] font-semibold text-meta">en cours</span>
+                    ) : null}
+                    {decalage ? (
+                      <span className="block text-[10.5px] font-medium leading-tight text-meta">
+                        finance {libelleMoisCourt(decalerMois(l.cle, 1)).toLowerCase()}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span
+                    className={`shrink-0 text-[13px] font-bold tabular-nums ${
+                      l.cumulNet >= 0 ? 'text-succes-deep' : 'text-alerte-deep'
+                    }`}
+                  >
+                    {formaterDevise(l.cumulNet, devise, 0)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-meta">
+                      Salaire
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      inputMode="decimal"
+                      value={profil.mois[l.cle]?.revenuPercu ?? ''}
+                      placeholder={l.renseigne ? String(Math.round(l.revenu)) : '—'}
+                      aria-label={`Salaire de ${libelleMoisCourt(l.cle)} ${annee}`}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onChange={(e) =>
+                        definirRevenuPercu(
+                          l.cle,
+                          e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                        )
+                      }
+                      className="h-11 w-full rounded-xl border border-encre/[0.08] bg-white px-3 text-[14px] font-bold tabular-nums text-encre outline-none transition-colors duration-200 placeholder:font-semibold placeholder:text-meta/70 focus:border-ciel [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-meta">
+                      Frais
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      inputMode="decimal"
+                      value={profil.mois[l.cle]?.fraisMaintenance ?? ''}
+                      placeholder={String(Math.round(l.renseigne ? l.maintenance : fraisDeclares))}
+                      aria-label={`Frais de ${libelleMoisCourt(l.cle)} ${annee}`}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onChange={(e) =>
+                        definirFraisMois(
+                          l.cle,
+                          e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                        )
+                      }
+                      className="h-11 w-full rounded-xl border border-encre/[0.08] bg-white px-3 text-[14px] font-semibold tabular-nums text-meta outline-none transition-colors duration-200 placeholder:text-meta/70 focus:border-ciel focus:text-encre [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    />
+                  </label>
+                </div>
+
+                <p className="mt-2 text-[11px] font-semibold text-meta">
+                  Net du mois :{' '}
+                  <span
+                    className={
+                      !l.renseigne
+                        ? 'text-meta/60'
+                        : l.net >= 0
+                          ? 'text-encre'
+                          : 'text-alerte-deep'
+                    }
+                  >
+                    {l.renseigne ? formaterDevise(l.net, devise, 0) : '—'}
+                  </span>
+                </p>
+              </li>
+            )
+          })}
+        </ul>
+      ) : (
       <div className="defilement-doux mt-5 overflow-x-auto border-t border-encre/[0.06] pt-1">
         <table className="w-full min-w-[440px] border-collapse">
           <caption className="sr-only">
@@ -198,6 +305,7 @@ export function AvancementAnnuel() {
           </tbody>
         </table>
       </div>
+      )}
 
       <p className="mt-3 border-t border-encre/[0.06] pt-3 text-[11.5px] leading-relaxed text-meta">
         Un mois compte dès qu’il est passé, ou dès que vous saisissez son salaire à l’avance. Les

@@ -28,8 +28,10 @@ export function EnteteSection({
   sombre?: boolean
 }) {
   return (
-    <div className="mb-4 flex items-start justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-2.5">
+    // au téléphone, le titre garde sa place et les contrôles passent dessous :
+    // « Août 2026 » tronqué à trois lettres, ce n'est plus un titre
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-x-3 gap-y-2.5">
+      <div className="flex min-w-[58%] items-center gap-2.5 sm:min-w-0">
         {Icone ? (
           <span
             className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${

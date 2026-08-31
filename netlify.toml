@@ -1,0 +1,35 @@
+# Déploiement Netlify de l'interface Money Guru.
+#
+# L'application vit dans le sous-dossier « ui ». Sans ce fichier, Netlify
+# publie la racine du dépôt — où il n'y a aucun index.html — d'où la page
+# « Page not found » à l'ouverture du site.
+#
+# « publish » est relatif à « base » : dist signifie donc ui/dist.
+
+[build]
+  base = "ui"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Vite 5 et les outils de test demandent Node 18 au minimum
+  NODE_VERSION = "20"
+
+# L'application n'a aucun serveur : toute adresse retombe sur la page unique,
+# qui lit ensuite l'ancre « #/mois/suivi » pour ouvrir la bonne vue.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Les fichiers versionnés par empreinte ne changent jamais : on les met en
+# cache pour de bon, et jamais la page elle-même.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

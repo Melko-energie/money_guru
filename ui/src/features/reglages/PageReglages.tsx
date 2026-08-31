@@ -195,11 +195,13 @@ export function PageReglages() {
                     <Icone size={18} strokeWidth={1.9} />
                   </span>
 
+                  {/* au téléphone le libellé prend sa propre ligne : à 35 px de
+                      large, on ne lit ni ne corrige le nom d'un poste */}
                   <input
                     value={depense.libelle}
                     aria-label={`Libellé du poste ${depense.libelle}`}
                     onChange={(e) => definirDepense(depense.id, { libelle: e.target.value })}
-                    className="h-9 min-w-0 flex-1 rounded-xl border border-transparent bg-transparent px-2 text-[14px] font-semibold text-encre outline-none transition-colors focus:border-encre/10 focus:bg-white"
+                    className="h-9 min-w-0 flex-1 basis-[calc(100%-3.25rem)] rounded-xl border border-transparent bg-transparent px-2 text-[14px] font-semibold text-encre outline-none transition-colors focus:border-encre/10 focus:bg-white sm:basis-auto"
                   />
 
                   <div className="flex shrink-0 items-center rounded-xl border border-encre/[0.09] bg-white">

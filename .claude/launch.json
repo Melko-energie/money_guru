@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "ui"],
       "port": 6012
+    },
+    {
+      "name": "money-guru-dist",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview", "--prefix", "ui", "--", "--port", "6013", "--strictPort"],
+      "port": 6013
     }
   ]
 }

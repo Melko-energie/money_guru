@@ -84,7 +84,7 @@ export function PageSuivi({ onNaviguer }: { onNaviguer: (v: Vue) => void }) {
             </div>
           }
         >
-          <div className="grid gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Chiffre
               libelle="Report entrant"
               valeur={formaterDevise(s.totalReportEntrant, devise, 0)}
