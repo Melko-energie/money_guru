@@ -53,9 +53,11 @@ export function ChampsMois({ cle }: { cle: string }) {
           suffixe={devise}
           onChange={(v) => definirFraisMois(cle, v)}
           aide={
-            fraisPropres == null
-              ? 'Le total déclaré dans Mes chiffres. Modifiable pour ce mois seul.'
-              : 'Propre à ce mois : les autres gardent le total déclaré.'
+            decalage
+              ? `${libelleMois(cle)} — couverts par le salaire touché en ${libelleMois(moisSalaire).toLowerCase()}.`
+              : fraisPropres == null
+                ? `${libelleMois(cle)} — le total déclaré dans Mes chiffres, modifiable pour ce mois seul.`
+                : `${libelleMois(cle)} — propre à ce mois : les autres gardent le total déclaré.`
           }
         />
         {fraisPropres != null ? (

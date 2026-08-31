@@ -43,7 +43,7 @@ export default {
         prune: { DEFAULT: '#74B5D5', deep: '#3F7B9E', soft: '#9DCBE3', tint: '#E7F3F8' }, // objectifs
         ambre: { DEFAULT: '#A8B457', deep: '#767D2F', soft: '#C6CE93', tint: '#F5F7EA' }, // fun money
       },
-      borderRadius: { fenetre: '36px', carte: '28px', pilule: '999px' },
+      borderRadius: { carte: '28px', pilule: '999px' },
       boxShadow: {
         fenetre: '0 50px 120px -40px rgba(39,40,42,0.30)',
         carte: '0 24px 60px -30px rgba(39,40,42,0.24)',

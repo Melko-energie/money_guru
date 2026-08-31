@@ -3,6 +3,7 @@ import {
   moisCouverts,
   objectifFondsUrgence,
   progressionUrgence,
+  resteApresMaintenance,
   usageLimiteEmprunt,
 } from './calculs'
 import { cleMoisDe, decalerMois, decomposerMois, libelleMois } from './calendrier'
@@ -11,10 +12,10 @@ import { revenuDuMois } from './suivi'
 import type { Objectif, ProfilFinancier } from './types'
 
 /** Au-delà de vingt ans, un objectif n’en est plus un : on arrête de chercher. */
-export const MOIS_HORIZON_MAX = 240
+const MOIS_HORIZON_MAX = 240
 
 /** Un achat qui mobilise plus d’un quart du revenu chaque mois mérite d’être signalé. */
-export const SEUIL_EFFORT_LOURD = 0.25
+const SEUIL_EFFORT_LOURD = 0.25
 
 /**
  * Nombre de mois entre deux clés « AAAA-MM », borne de départ incluse.
@@ -35,6 +36,37 @@ export function partMensuelle(
   categorie: Objectif['categorie'],
 ): number {
   return (revenuDuMois(profil, cle) * profil.allocation[categorie]) / 100
+}
+
+/**
+ * D'où vient le rythme de cet objectif.
+ * Les objectifs enregistrés avant ce réglage n'ont pas le champ : on le déduit
+ * du montant qu'ils portaient.
+ */
+export function modeFinancement(objectif: Objectif): 'poste' | 'montant' {
+  if (objectif.financement) return objectif.financement
+  return typeof objectif.versementMensuel === 'number' && objectif.versementMensuel > 0
+    ? 'montant'
+    : 'poste'
+}
+
+/** Vrai si l'objectif avance à un montant fixé à la main, pas au ratio du poste. */
+export function versementChoisi(objectif: Objectif): boolean {
+  return modeFinancement(objectif) === 'montant'
+}
+
+/**
+ * Ce qui part de côté ce mois-là pour cet objectif.
+ * Un montant décidé à la main remplace le ratio du poste : « je mets 2 000
+ * par mois » est une décision, pas une conséquence du revenu.
+ */
+export function versementDuMois(
+  profil: ProfilFinancier,
+  cle: string,
+  objectif: Objectif,
+): number {
+  if (versementChoisi(objectif)) return Math.max(0, objectif.versementMensuel ?? 0)
+  return partMensuelle(profil, cle, objectif.categorie)
 }
 
 export type FaisabiliteObjectif = {
@@ -62,6 +94,10 @@ export type FaisabiliteObjectif = {
   progressionPct: number
   /** Points de ratio à ajouter au poste pour tenir la date. */
   pointsARajouter: number
+  /** Vrai si le rythme vient d'un montant fixé à la main. */
+  versementChoisi: boolean
+  /** Ce que le poste dégagerait tout seul ce mois-ci, à son ratio. */
+  partDuPoste: number
 }
 
 /**
@@ -80,7 +116,7 @@ export function faisabilite(
 
   let capaciteTotale = 0
   for (let i = 0; i < moisRestants; i += 1) {
-    capaciteTotale += partMensuelle(profil, decalerMois(moisCourant, i), objectif.categorie)
+    capaciteTotale += versementDuMois(profil, decalerMois(moisCourant, i), objectif)
   }
   const capaciteMensuelle = moisRestants > 0 ? capaciteTotale / moisRestants : 0
   const effortMensuel = moisRestants > 0 ? manquant / moisRestants : manquant
@@ -91,7 +127,7 @@ export function faisabilite(
   let moisAtteinte: string | null = cumul >= montant ? moisCourant : null
   let curseur = moisCourant
   for (let i = 0; i < MOIS_HORIZON_MAX && moisAtteinte === null; i += 1) {
-    cumul += partMensuelle(profil, curseur, objectif.categorie)
+    cumul += versementDuMois(profil, curseur, objectif)
     if (cumul >= montant) moisAtteinte = curseur
     else curseur = decalerMois(curseur, 1)
   }
@@ -115,6 +151,8 @@ export function faisabilite(
         ? moisEntre(objectif.moisCible, moisAtteinte) - 1
         : 0,
     partDuRevenu: revenu > 0 ? effortMensuel / revenu : 0,
+    versementChoisi: versementChoisi(objectif),
+    partDuPoste: partMensuelle(profil, moisCourant, objectif.categorie),
     progressionPct: montant > 0 ? Math.min(100, (dejaMisDeCote / montant) * 100) : 0,
     pointsARajouter: Math.max(0, pointsNecessaires - profil.allocation[objectif.categorie]),
   }
@@ -136,16 +174,20 @@ export function conseils(profil: ProfilFinancier, f: FaisabiliteObjectif): strin
     )
   } else if (f.atteignable) {
     liste.push(
-      `Mettez ${montant(f.effortMensuel)} de côté chaque mois pendant ${formaterDuree(f.moisRestants)} : c’est exactement ce qu’il faut pour tenir la date.`,
+      f.versementChoisi
+        ? `Vous mettez ${montant(f.capaciteMensuelle)} par mois ; il en faut ${montant(f.effortMensuel)} pour tenir la date. Vous êtes au-dessus, l’échéance est tenue.`
+        : `Mettez ${montant(f.effortMensuel)} de côté chaque mois pendant ${formaterDuree(f.moisRestants)} : c’est exactement ce qu’il faut pour tenir la date.`,
     )
     if (f.ecartMensuel > 0) {
       liste.push(
-        `Votre poste dégage ${montant(f.ecartMensuel)} de plus chaque mois que nécessaire. Ce surplus a plus de valeur en investissement qu’en attente sur le compte courant.`,
+        `Vous dégagez ${montant(f.ecartMensuel)} de plus chaque mois que nécessaire. Ce surplus a plus de valeur en investissement qu’en attente sur le compte courant.`,
       )
     }
   } else {
     liste.push(
-      `Il manque ${montant(Math.abs(f.ecartMensuel))} par mois. En l’état, l’objectif n’est pas tenable à la date visée.`,
+      f.versementChoisi
+        ? `Vous mettez ${montant(f.capaciteMensuelle)} par mois, il en faudrait ${montant(f.effortMensuel)} : il manque ${montant(Math.abs(f.ecartMensuel))} chaque mois.`
+        : `Il manque ${montant(Math.abs(f.ecartMensuel))} par mois. En l’état, l’objectif n’est pas tenable à la date visée.`,
     )
     if (f.moisAtteinte) {
       liste.push(
@@ -153,13 +195,15 @@ export function conseils(profil: ProfilFinancier, f: FaisabiliteObjectif): strin
       )
     } else {
       liste.push(
-        'Au rythme actuel, ce poste ne financera jamais cet achat : sa part du revenu est trop faible, ou nulle.',
+        f.versementChoisi
+          ? 'Aucun versement mensuel : tant qu’il reste à zéro, rien n’avance.'
+          : 'Au rythme actuel, ce poste ne financera jamais cet achat : sa part du revenu est trop faible, ou nulle.',
       )
     }
     // on ne propose de monter la part que si les points existent ailleurs :
     // la maintenance est un coût subi, on ne la rogne pas pour un achat
     const pointsDisponibles = 100 - profil.allocation.maintenance - profil.allocation[f.objectif.categorie]
-    if (f.pointsARajouter > 0 && f.pointsARajouter <= pointsDisponibles) {
+    if (!f.versementChoisi && f.pointsARajouter > 0 && f.pointsARajouter <= pointsDisponibles) {
       liste.push(
         `Autre voie : monter ce poste de ${f.pointsARajouter} points de votre revenu. Les autres postes baissent d’autant — regardez lequel peut l’absorber.`,
       )
@@ -181,6 +225,29 @@ export function conseils(profil: ProfilFinancier, f: FaisabiliteObjectif): strin
   if (usageLimiteEmprunt(revenuDuMois(profil, cleMoisDe()), profil.dettes) > 1) {
     liste.push(
       'Votre dette dépasse la limite que vous vous êtes fixée. La solder avant cet achat vous rend la marge que vous cherchez ici.',
+    )
+  }
+
+  // un versement décidé plus gros que ce qui reste une fois les frais payés
+  // ne tient pas : autant le dire avant de s'y engager
+  if (f.versementChoisi && f.manquant > 0) {
+    const disponible = resteApresMaintenance(revenuDuMois(profil, cleMoisDe()), profil.depenses)
+    if (f.capaciteMensuelle > disponible) {
+      liste.push(
+        `Il ne vous reste que ${montant(Math.max(0, disponible))} par mois une fois vos frais payés. Mettre ${montant(f.capaciteMensuelle)} de côté ne tient pas : baissez le montant, ou reculez la date.`,
+      )
+    }
+  }
+
+  if (!f.versementChoisi && f.objectif.categorie === 'urgence' && f.manquant > 0) {
+    liste.push(
+      'Financer un achat sur le fonds d’urgence, c’est dépenser votre filet de sécurité. À ne faire que si ce fonds est déjà plein et le restera.',
+    )
+  }
+
+  if (!f.versementChoisi && f.objectif.categorie === 'investissement' && f.manquant > 0) {
+    liste.push(
+      'Cet achat est pris sur votre capital productif : ce que vous sortez aujourd’hui ne travaillera pas pour vous demain.',
     )
   }
 

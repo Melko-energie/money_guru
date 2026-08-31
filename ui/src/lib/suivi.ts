@@ -1,8 +1,16 @@
 import { CATEGORIES, fraisMaintenance, montantsAlloues } from './calculs'
-import { cleMoisDe, decalerMois, moisDeLAnnee, moisDeCleJour } from './calendrier'
+import {
+  anneeDeCle,
+  cleMois,
+  cleMoisDe,
+  decalerMois,
+  moisDeLAnnee,
+  moisDeCleJour,
+} from './calendrier'
 import type {
   Categorie,
   CumulMois,
+  Depense,
   DepenseDatee,
   MoisSuivi,
   ProfilFinancier,
@@ -10,7 +18,7 @@ import type {
 } from './types'
 
 /** Au-delà, on ne remonte plus la chaîne : trois ans suffisent à tout affichage. */
-export const MOIS_CHAINE_MAX = 36
+const MOIS_CHAINE_MAX = 36
 
 const parCategorie = (valeur = 0): Record<Categorie, number> =>
   CATEGORIES.reduce(
@@ -40,20 +48,46 @@ export function moisFinancant(profil: ProfilFinancier, cle: string): string {
   return profil.versementSalaire?.financeMoisSuivant ? decalerMois(cle, -1) : cle
 }
 
+/**
+ * L'inverse de `moisFinancant` : le mois que le salaire de `cle` fait vivre.
+ * Touché fin août, il couvre septembre.
+ */
+function moisCouvert(profil: ProfilFinancier, cle: string): string {
+  return profil.versementSalaire?.financeMoisSuivant ? decalerMois(cle, 1) : cle
+}
+
 /** Ce dont on dispose pour vivre ce mois-là, décalage du versement compris. */
 export function revenuDuMois(profil: ProfilFinancier, cle: string): number {
   return salairePercu(profil, moisFinancant(profil, cle))
 }
 
-/** Frais de maintenance retenus pour ce mois : ceux du mois, sinon ceux du profil. */
+/**
+ * Les postes de frais qui valent pour ce mois : les siens s'il en a, sinon
+ * ceux du modèle. C'est ce que « Mes chiffres » montre quand on choisit un mois.
+ */
+export function postesDuMois(profil: ProfilFinancier, cle: string): Depense[] {
+  return profil.mois[cle]?.depenses ?? profil.depenses
+}
+
+/** Vrai si ce mois a sa propre liste de postes, différente du modèle. */
+export function moisDetaille(profil: ProfilFinancier, cle: string): boolean {
+  return Array.isArray(profil.mois[cle]?.depenses)
+}
+
+/**
+ * Frais retenus pour ce mois. Le détail prime sur le total, le total prime
+ * sur le modèle : c'est toujours la déclaration la plus précise qui gagne.
+ */
 export function fraisDuMois(profil: ProfilFinancier, cle: string): number {
-  const saisi = profil.mois[cle]?.fraisMaintenance
+  const fiche = profil.mois[cle]
+  if (Array.isArray(fiche?.depenses)) return fraisMaintenance(fiche.depenses)
+  const saisi = fiche?.fraisMaintenance
   return saisi === undefined || saisi === null
     ? fraisMaintenance(profil.depenses)
     : Math.max(0, saisi)
 }
 
-export function moisClos(profil: ProfilFinancier, cle: string): boolean {
+function moisClos(profil: ProfilFinancier, cle: string): boolean {
   return profil.mois[cle]?.clos === true
 }
 
@@ -156,15 +190,6 @@ export function chaineSuivi(profil: ProfilFinancier, cible = cleMoisDe()): Situa
   return situations
 }
 
-/** Les `nb` derniers mois de la chaîne, le plus récent en dernier. */
-export function derniersMois(
-  profil: ProfilFinancier,
-  cible = cleMoisDe(),
-  nb = 6,
-): SituationMois[] {
-  return chaineSuivi(profil, cible).slice(-Math.max(1, nb))
-}
-
 /** Les douze mois d'une année, chacun avec son report et son reste. */
 export function situationsAnnee(profil: ProfilFinancier, annee: number): SituationMois[] {
   return moisDeLAnnee(annee).map((cle) => situationMois(profil, cle))
@@ -179,14 +204,90 @@ export function situationsAnnee(profil: ProfilFinancier, annee: number): Situati
  * saisi d'avance. Sans cette règle, les mois futurs gonfleraient le cumul
  * avec un salaire supposé que l'utilisateur n'a jamais annoncé.
  */
-export function moisRenseigne(
+function moisRenseigne(
   profil: ProfilFinancier,
   cle: string,
   moisCourant = cleMoisDe(),
 ): boolean {
   const saisi = profil.mois[cle]?.revenuPercu
   if (saisi !== undefined && saisi !== null) return true
+  // avant le début du suivi il n'y a rien à compter : inventer des mois
+  // antérieurs gonflerait le cumul avec un salaire jamais annoncé
+  if (cle < debutSuivi(profil)) return false
   return cle <= moisCourant
+}
+
+/**
+ * Janvier de la première année porteuse de données.
+ * C'est de là que part le cumul, et il ne repart jamais à zéro ensuite :
+ * ce que 2026 a laissé entre dans 2027.
+ */
+function debutSuivi(profil: ProfilFinancier): string {
+  return cleMois(anneeDeCle(premierMoisSuivi(profil)), 0)
+}
+
+/** Au-delà, on arrête de remonter : personne ne suit un budget sur cinquante ans. */
+const MOIS_CUMUL_MAX = 600
+
+/** Le cumul mois par mois, de `debut` à `fin` inclus. */
+function cumulEntre(
+  profil: ProfilFinancier,
+  debut: string,
+  fin: string,
+  moisCourant: string,
+): CumulMois[] {
+  const lignes: CumulMois[] = []
+  let cumulRevenu = 0
+  let cumulMaintenance = 0
+  let curseur = debut
+
+  for (let i = 0; i < MOIS_CUMUL_MAX && curseur <= fin; i += 1) {
+    const renseigne = moisRenseigne(profil, curseur, moisCourant)
+    // ce tableau montre le salaire au mois où il est touché, pas au mois
+    // qu'il finance : c'est la ligne que l'utilisateur saisit lui-même
+    const revenu = renseigne ? salairePercu(profil, curseur) : 0
+    // en revanche les frais sont ceux du mois que ce salaire fait vivre :
+    // retrancher les frais d'août d'un salaire qui sert à vivre septembre
+    // donnerait un « net » qui ne correspond à aucun mois réel
+    const moisFinance = moisCouvert(profil, curseur)
+    const maintenance = renseigne ? fraisDuMois(profil, moisFinance) : 0
+    cumulRevenu += revenu
+    cumulMaintenance += maintenance
+    lignes.push({
+      cle: curseur,
+      moisFinance,
+      renseigne,
+      revenu,
+      maintenance,
+      net: revenu - maintenance,
+      cumulRevenu,
+      cumulMaintenance,
+      cumulNet: cumulRevenu - cumulMaintenance,
+    })
+    curseur = decalerMois(curseur, 1)
+  }
+
+  return lignes
+}
+
+/** Ce que les années précédentes ont laissé, à l'entrée du 1er janvier. */
+export function reportAvantAnnee(
+  profil: ProfilFinancier,
+  annee: number,
+  moisCourant = cleMoisDe(),
+): { revenu: number; maintenance: number; net: number } {
+  const debut = debutSuivi(profil)
+  const janvier = cleMois(annee, 0)
+  if (debut >= janvier) return { revenu: 0, maintenance: 0, net: 0 }
+
+  const lignes = cumulEntre(profil, debut, decalerMois(janvier, -1), moisCourant)
+  const dernier = lignes[lignes.length - 1]
+  if (!dernier) return { revenu: 0, maintenance: 0, net: 0 }
+  return {
+    revenu: dernier.cumulRevenu,
+    maintenance: dernier.cumulMaintenance,
+    net: dernier.cumulNet,
+  }
 }
 
 /**
@@ -201,28 +302,30 @@ export function cumulAnnee(
   annee: number,
   moisCourant = cleMoisDe(),
 ): CumulMois[] {
-  let cumulRevenu = 0
-  let cumulMaintenance = 0
+  const debut = debutSuivi(profil)
+  const janvier = cleMois(annee, 0)
+  // on repart du début du suivi pour que le cumul traverse les années :
+  // ce que décembre a laissé est ce dont janvier hérite
+  const depart = debut < janvier ? debut : janvier
+  const lignes = cumulEntre(profil, depart, cleMois(annee, 11), moisCourant)
 
-  return moisDeLAnnee(annee).map((cle) => {
-    const renseigne = moisRenseigne(profil, cle, moisCourant)
-    // ce tableau montre le salaire au mois où il est touché, pas au mois
-    // qu'il finance : c'est la ligne que l'utilisateur saisit lui-même
-    const revenu = renseigne ? salairePercu(profil, cle) : 0
-    const maintenance = renseigne ? fraisDuMois(profil, cle) : 0
-    cumulRevenu += revenu
-    cumulMaintenance += maintenance
-    return {
-      cle,
-      renseigne,
-      revenu,
-      maintenance,
-      net: revenu - maintenance,
-      cumulRevenu,
-      cumulMaintenance,
-      cumulNet: cumulRevenu - cumulMaintenance,
-    }
-  })
+  const douze = lignes.slice(-12)
+  // une année entièrement antérieure au suivi n'a aucune ligne calculée
+  if (douze.length === 12) return douze
+  return moisDeLAnnee(annee).map(
+    (cle) =>
+      douze.find((l) => l.cle === cle) ?? {
+        cle,
+        moisFinance: moisCouvert(profil, cle),
+        renseigne: false,
+        revenu: 0,
+        maintenance: 0,
+        net: 0,
+        cumulRevenu: 0,
+        cumulMaintenance: 0,
+        cumulNet: 0,
+      },
+  )
 }
 
 /* ------------------------------------------------------------------ */

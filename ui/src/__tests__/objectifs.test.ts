@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { conseils, faisabilite, moisEntre, objectifsTries, partMensuelle } from '../lib/objectifs'
+import {
+  conseils,
+  faisabilite,
+  moisEntre,
+  objectifsTries,
+  partMensuelle,
+  versementChoisi,
+  versementDuMois,
+} from '../lib/objectifs'
 import { PROFIL_DE_TEST } from '../test/profils'
 import type { Objectif, ProfilFinancier } from '../lib/types'
 
@@ -193,5 +201,75 @@ describe('les conseils restent actionnables', () => {
     const enorme = conseils(p, faisabilite(p, objectif({ montant: 60000 }), '2026-08'))
     expect(enorme.join(' ')).not.toMatch(/monter ce poste/)
     expect(enorme.join(' ')).toMatch(/Troisième voie/)
+  })
+})
+
+/**
+ * Un montant décidé à la main prime sur le ratio du poste : « je mets 2 000
+ * par mois » est une décision, pas une conséquence du revenu.
+ */
+describe('le versement mensuel choisi', () => {
+  it('remplace le rythme du poste', () => {
+    const p = profil()
+    // le poste objectifs donne 1 000 ; on décide d'en mettre 2 500
+    expect(versementDuMois(p, '2026-08', objectif())).toBe(1000)
+    expect(versementDuMois(p, '2026-08', objectif({ versementMensuel: 2500 }))).toBe(2500)
+  })
+
+  it('ne s’applique pas tant qu’il est nul ou absent', () => {
+    const p = profil()
+    expect(versementChoisi(objectif({ versementMensuel: 0 }))).toBe(false)
+    expect(versementChoisi(objectif({ versementMensuel: null }))).toBe(false)
+    expect(versementDuMois(p, '2026-08', objectif({ versementMensuel: 0 }))).toBe(1000)
+  })
+
+  it('rend un objectif atteignable qui ne l’était pas', () => {
+    const p = profil()
+    // 30 000 en 7 mois : le poste ne suffit pas, 5 000 par mois oui
+    expect(faisabilite(p, objectif(), '2026-08').atteignable).toBe(false)
+    const avecVersement = faisabilite(p, objectif({ versementMensuel: 5000 }), '2026-08')
+    expect(avecVersement.atteignable).toBe(true)
+    expect(avecVersement.capaciteMensuelle).toBe(5000)
+    // 30 000 à 5 000 par mois : six mois, d'août à janvier
+    expect(avecVersement.moisAtteinte).toBe('2027-01')
+  })
+
+  it('ne dépend pas du revenu du mois', () => {
+    const p = profil({
+      mois: { '2026-09': { cle: '2026-09', revenuPercu: 40000, clos: false } },
+    })
+    const o = objectif({ versementMensuel: 2000 })
+    expect(versementDuMois(p, '2026-08', o)).toBe(2000)
+    expect(versementDuMois(p, '2026-09', o)).toBe(2000)
+  })
+
+  it('dit ce qui manque chaque mois plutôt que des points de ratio', () => {
+    const p = profil()
+    const liste = conseils(p, faisabilite(p, objectif({ versementMensuel: 1000 }), '2026-08'))
+    expect(liste.join(' ')).toMatch(/Vous mettez .+ par mois, il en faudrait/)
+    expect(liste.join(' ')).not.toMatch(/monter ce poste/)
+  })
+
+  it('signale un versement plus gros que ce qui reste après les frais', () => {
+    const p = profil()
+    const liste = conseils(p, faisabilite(p, objectif({ versementMensuel: 5000 }), '2026-08'))
+    expect(liste.join(' ')).toMatch(/Il ne vous reste que .+ une fois vos frais payés/)
+  })
+})
+
+describe('les postes qui financent un objectif', () => {
+  it('acceptent le capital productif et le fonds d’urgence', () => {
+    const p = profil()
+    const surInvest = faisabilite(p, objectif({ categorie: 'investissement' }), '2026-08')
+    expect(surInvest.partDuPoste).toBe(1000)
+
+    const surUrgence = conseils(p, faisabilite(p, objectif({ categorie: 'urgence' }), '2026-08'))
+    expect(surUrgence.join(' ')).toMatch(/filet de sécurité/)
+  })
+
+  it('préviennent quand l’achat sort du capital productif', () => {
+    const p = profil()
+    const liste = conseils(p, faisabilite(p, objectif({ categorie: 'investissement' }), '2026-08'))
+    expect(liste.join(' ')).toMatch(/ne travaillera pas pour vous demain/)
   })
 })

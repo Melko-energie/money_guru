@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import App from '../App'
 import { PROFIL_DE_TEST } from '../test/profils'
 import { FournisseurAnimations } from '../state/animations'
@@ -517,5 +517,292 @@ describe('au téléphone, rien n’est perdu', () => {
     ]) {
       expect(within(feuille).getByText(titre)).toBeInTheDocument()
     }
+  })
+})
+
+/**
+ * « Mes chiffres » règle les frais mois par mois : on choisit le mois, on
+ * remplit ses postes, et les autres mois ne bougent pas.
+ */
+describe('les frais se règlent mois par mois', () => {
+  const ouvrirChiffres = async () => {
+    fireEvent.click(screen.getAllByTitle('Mes chiffres')[0])
+    return screen.findByLabelText('Mois à régler')
+  }
+
+  const profilEnregistre = () =>
+    JSON.parse(window.localStorage.getItem('money-guru:profil:v2') ?? '{}')
+
+  it('propose le modèle et les mois de deux années', async () => {
+    monter()
+    const selecteur = await ouvrirChiffres()
+    const options = Array.from((selecteur as HTMLSelectElement).options).map((o) => o.value)
+
+    expect(options[0]).toBe('modele')
+    // 1 modèle + 24 mois
+    expect(options).toHaveLength(25)
+    expect(options).toContain(cleMoisDe())
+  })
+
+  it('part des postes du modèle quand le mois n’a rien de propre', async () => {
+    monter()
+    const selecteur = await ouvrirChiffres()
+    fireEvent.change(selecteur, { target: { value: cleMoisDe() } })
+
+    // le profil de test déclare un loyer de 4 200
+    expect(screen.getByLabelText('Montant de Logement')).toHaveValue(3200)
+    expect(screen.getByText(/suit encore le modèle/)).toBeInTheDocument()
+  })
+
+  it('écrit la correction sur le seul mois choisi', async () => {
+    monter()
+    const selecteur = await ouvrirChiffres()
+    const cible = cleMoisDe()
+    fireEvent.change(selecteur, { target: { value: cible } })
+
+    fireEvent.change(screen.getByLabelText('Montant de Logement'), { target: { value: '5000' } })
+
+    const p = profilEnregistre()
+    // le mois porte désormais ses propres postes
+    expect(p.mois[cible].depenses.find((d: { id: string }) => d.id === 'logement').montant).toBe(5000)
+    // le modèle n'a pas bougé
+    expect(p.depenses.find((d: { id: string }) => d.id === 'logement').montant).toBe(3200)
+    expect(screen.getByText(/ses propres postes/)).toBeInTheDocument()
+  })
+
+  it('rend le mois au modèle sur demande', async () => {
+    monter()
+    const selecteur = await ouvrirChiffres()
+    const cible = cleMoisDe()
+    fireEvent.change(selecteur, { target: { value: cible } })
+    fireEvent.change(screen.getByLabelText('Montant de Logement'), { target: { value: '5000' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /Rendre ce mois au modèle/ }))
+    expect(profilEnregistre().mois[cible].depenses).toBeNull()
+    expect(screen.getByLabelText('Montant de Logement')).toHaveValue(3200)
+  })
+
+  it('laisse le modèle intact quand aucun mois n’est choisi', async () => {
+    monter()
+    await ouvrirChiffres()
+    fireEvent.change(screen.getByLabelText('Montant de Logement'), { target: { value: '4900' } })
+
+    const p = profilEnregistre()
+    expect(p.depenses.find((d: { id: string }) => d.id === 'logement').montant).toBe(4900)
+    expect(p.mois[cleMoisDe()]?.depenses ?? null).toBeNull()
+  })
+
+  it('un total saisi ailleurs efface le détail, et l’inverse', async () => {
+    monter()
+    const selecteur = await ouvrirChiffres()
+    const cible = cleMoisDe()
+    fireEvent.change(selecteur, { target: { value: cible } })
+    fireEvent.change(screen.getByLabelText('Montant de Logement'), { target: { value: '5000' } })
+    expect(profilEnregistre().mois[cible].fraisMaintenance).toBeNull()
+
+    // le champ « total » du suivi mensuel reprend la main
+    fireEvent.click(screen.getAllByTitle('Suivi mensuel')[0])
+    await screen.findByText('La chaîne des mois')
+    fireEvent.change(screen.getByLabelText('Frais de maintenance du mois'), {
+      target: { value: '7000' },
+    })
+
+    const p = profilEnregistre()
+    expect(p.mois[cible].fraisMaintenance).toBe(7000)
+    expect(p.mois[cible].depenses).toBeNull()
+  })
+
+  it('le repère du tableau annuel montre les frais du mois détaillé', async () => {
+    monter()
+    fireEvent.click(screen.getAllByTitle('Mes chiffres')[0])
+    const selecteur = await screen.findByLabelText('Mois à régler')
+
+    const suivant = decalerMois(cleMoisDe(), 1)
+    fireEvent.change(selecteur, { target: { value: suivant } })
+    fireEvent.change(screen.getByLabelText('Montant de Logement'), { target: { value: '9000' } })
+
+    fireEvent.click(screen.getAllByTitle('Suivi mensuel')[0])
+    await screen.findByText('La chaîne des mois')
+
+    const annee = Number(suivant.slice(0, 4))
+    const champ = screen.getByLabelText(`Frais de ${libelleMoisCourt(suivant)} ${annee}`)
+    // 9 000 de logement + les autres postes du modèle, et non le total du modèle
+    expect(Number((champ as HTMLInputElement).placeholder)).toBeGreaterThan(9000)
+  })
+})
+
+/**
+ * Sur la page : quatre postes possibles, et un montant mensuel qu'on décide
+ * soi-même plutôt que de subir un pourcentage.
+ */
+describe('financer un objectif à son rythme', () => {
+  const creer = async (montant: string) => {
+    fireEvent.click(screen.getAllByTitle('Mes objectifs')[0])
+    await screen.findByText('Nouvel objectif')
+    fireEvent.change(screen.getByLabelText('Quoi'), { target: { value: 'Une moto' } })
+    fireEvent.change(screen.getByLabelText('Budget visé'), { target: { value: montant } })
+  }
+
+  const parMontant = () =>
+    fireEvent.click(screen.getByRole('button', { name: 'Par un montant fixe' }))
+
+  const profilEnregistre = () =>
+    JSON.parse(window.localStorage.getItem('money-guru:profil:v2') ?? '{}')
+
+  it('ne montre qu’un seul réglage de financement à la fois', async () => {
+    monter()
+    fireEvent.click(screen.getAllByTitle('Mes objectifs')[0])
+    await screen.findByText('Nouvel objectif')
+
+    // par défaut : le poste, et aucun champ de montant mensuel
+    expect(screen.getByLabelText('Poste qui le finance')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Je mets de côté chaque mois')).toBeNull()
+
+    parMontant()
+    expect(screen.getByLabelText('Je mets de côté chaque mois')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Poste qui le finance')).toBeNull()
+  })
+
+  it('propose quatre postes de financement', async () => {
+    monter()
+    fireEvent.click(screen.getAllByTitle('Mes objectifs')[0])
+    const selecteur = await screen.findByLabelText('Poste qui le finance')
+    const options = Array.from((selecteur as HTMLSelectElement).options).map((o) => o.value)
+
+    expect(options).toEqual(['objectifs', 'fun', 'investissement', 'urgence'])
+  })
+
+  it('enregistre le mode et le montant choisis', async () => {
+    monter()
+    await creer('30000')
+    parMontant()
+    fireEvent.change(screen.getByLabelText('Je mets de côté chaque mois'), {
+      target: { value: '5000' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter cet objectif/ }))
+
+    const o = profilEnregistre().objectifs[0]
+    expect(o.financement).toBe('montant')
+    expect(o.versementMensuel).toBe(5000)
+  })
+
+  it('ne garde aucun montant quand le poste donne le rythme', async () => {
+    monter()
+    await creer('30000')
+    parMontant()
+    fireEvent.change(screen.getByLabelText('Je mets de côté chaque mois'), {
+      target: { value: '5000' },
+    })
+    // on change d'avis avant de valider
+    fireEvent.click(screen.getByRole('button', { name: 'Par un poste' }))
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter cet objectif/ }))
+
+    const o = profilEnregistre().objectifs[0]
+    expect(o.financement).toBe('poste')
+    expect(o.versementMensuel).toBeNull()
+  })
+
+  it('change le verdict quand on monte le versement', async () => {
+    monter()
+    await creer('30000')
+    parMontant()
+    fireEvent.change(screen.getByLabelText('Je mets de côté chaque mois'), {
+      target: { value: '1000' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter cet objectif/ }))
+    expect(screen.getByText('Trop juste')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Versement mensuel pour Une moto'), {
+      target: { value: '6000' },
+    })
+    expect(screen.getByText('Réalisable')).toBeInTheDocument()
+  })
+
+  it('parle du montant décidé, pas de points de ratio', async () => {
+    monter()
+    await creer('30000')
+    parMontant()
+    fireEvent.change(screen.getByLabelText('Je mets de côté chaque mois'), {
+      target: { value: '1000' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter cet objectif/ }))
+
+    expect(screen.getByText(/Vous mettez/)).toBeInTheDocument()
+    expect(screen.queryByText(/monter ce poste de/)).toBeNull()
+  })
+
+  it('affiche ce que le poste donne, sans champ de saisie, en mode poste', async () => {
+    monter()
+    await creer('30000')
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter cet objectif/ }))
+
+    expect(screen.getByText('Le poste donne')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Versement mensuel pour Une moto')).toBeNull()
+  })
+})
+
+/**
+ * Un achat prévu se corrige : le montant, la date, le financement.
+ * Sans ça, la moindre erreur oblige à supprimer puis recréer.
+ */
+describe('modifier un achat prévu', () => {
+  const creerMoto = async () => {
+    fireEvent.click(screen.getAllByTitle('Mes objectifs')[0])
+    await screen.findByText('Nouvel objectif')
+    fireEvent.change(screen.getByLabelText('Quoi'), { target: { value: 'Une moto' } })
+    fireEvent.change(screen.getByLabelText('Budget visé'), { target: { value: '30000' } })
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter cet objectif/ }))
+  }
+
+  it('ouvre la fiche de l’objectif et la referme', async () => {
+    monter()
+    await creerMoto()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Modifier Une moto' }))
+    const boite = screen.getByRole('dialog')
+    expect(within(boite).getByLabelText('Quoi')).toHaveValue('Une moto')
+    expect(within(boite).getByLabelText('Budget visé')).toHaveValue(30000)
+
+    fireEvent.click(within(boite).getByRole('button', { name: 'Annuler' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('corrige le libellé, le montant et la date', async () => {
+    monter()
+    await creerMoto()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Modifier Une moto' }))
+    const boite = screen.getByRole('dialog')
+    fireEvent.change(within(boite).getByLabelText('Quoi'), { target: { value: 'Un scooter' } })
+    fireEvent.change(within(boite).getByLabelText('Budget visé'), { target: { value: '12000' } })
+    fireEvent.change(within(boite).getByLabelText('Mois de l’achat'), {
+      target: { value: '2027-06' },
+    })
+    fireEvent.click(within(boite).getByRole('button', { name: /Enregistrer les modifications/ }))
+
+    const o = JSON.parse(window.localStorage.getItem('money-guru:profil:v2') ?? '{}').objectifs[0]
+    expect(o.libelle).toBe('Un scooter')
+    expect(o.montant).toBe(12000)
+    expect(o.moisCible).toBe('2027-06')
+    expect(screen.getByRole('heading', { name: 'Un scooter' })).toBeInTheDocument()
+  })
+
+  it('bascule un objectif du poste vers un montant fixe', async () => {
+    monter()
+    await creerMoto()
+    expect(screen.getByText('Le poste donne')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Modifier Une moto' }))
+    const boite = screen.getByRole('dialog')
+    fireEvent.click(within(boite).getByRole('button', { name: 'Par un montant fixe' }))
+    fireEvent.change(within(boite).getByLabelText('Je mets de côté chaque mois'), {
+      target: { value: '4500' },
+    })
+    fireEvent.click(within(boite).getByRole('button', { name: /Enregistrer les modifications/ }))
+
+    const o = JSON.parse(window.localStorage.getItem('money-guru:profil:v2') ?? '{}').objectifs[0]
+    expect(o.financement).toBe('montant')
+    expect(o.versementMensuel).toBe(4500)
+    expect(screen.getByLabelText('Versement mensuel pour Une moto')).toHaveValue(4500)
   })
 })

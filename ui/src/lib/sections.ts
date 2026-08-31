@@ -147,7 +147,7 @@ export const SECTIONS: Section[] = [
 /** Toutes les vues, dans l'ordre des sections. */
 export const VUES: FicheVue[] = SECTIONS.flatMap((s) => s.vues)
 
-export function ficheVue(vue: Vue): FicheVue {
+function ficheVue(vue: Vue): FicheVue {
   return VUES.find((v) => v.vue === vue) ?? VUES[0]
 }
 

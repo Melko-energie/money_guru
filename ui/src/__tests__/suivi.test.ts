@@ -6,8 +6,12 @@ import {
   depensesDuMoisParCategorie,
   cumulAnnee,
   effetSurSoldes,
+  fraisDuMois,
+  moisDetaille,
   moisFinancant,
   premierMoisSuivi,
+  postesDuMois,
+  reportAvantAnnee,
   revenuDuMois,
   salairePercu,
   situationMois,
@@ -374,5 +378,223 @@ describe('le décalage du versement', () => {
     })
     const aout = cumulAnnee(p, 2026, '2026-08')[7]
     expect(aout.revenu).toBe(5000)
+  })
+})
+
+/**
+ * Les frais se règlent mois par mois, poste par poste.
+ * Un mois non détaillé suit le modèle ; un mois détaillé ne dépend plus que
+ * de lui-même.
+ */
+describe('les postes de frais d’un mois', () => {
+  const modele = [
+    { id: 'loyer', libelle: 'Loyer', montant: 3000, icone: 'logement' as const },
+    { id: 'courses', libelle: 'Courses', montant: 1000, icone: 'alimentation' as const },
+  ]
+
+  it('reprennent le modèle tant que le mois n’a rien de propre', () => {
+    const p = profil({ depenses: modele })
+    expect(postesDuMois(p, '2026-03')).toEqual(modele)
+    expect(moisDetaille(p, '2026-03')).toBe(false)
+    expect(fraisDuMois(p, '2026-03')).toBe(4000)
+  })
+
+  it('ne valent que pour leur mois une fois détaillés', () => {
+    const p = profil({
+      depenses: modele,
+      mois: {
+        '2026-03': {
+          cle: '2026-03',
+          revenuPercu: null,
+          clos: false,
+          depenses: [{ id: 'loyer', libelle: 'Loyer', montant: 4500, icone: 'logement' }],
+        },
+      },
+    })
+    expect(moisDetaille(p, '2026-03')).toBe(true)
+    expect(fraisDuMois(p, '2026-03')).toBe(4500)
+    // mars détaillé ne touche ni avril ni le modèle
+    expect(fraisDuMois(p, '2026-04')).toBe(4000)
+    expect(p.depenses).toEqual(modele)
+  })
+
+  it('priment sur un total saisi en un seul chiffre', () => {
+    const p = profil({
+      depenses: modele,
+      mois: {
+        '2026-03': {
+          cle: '2026-03',
+          revenuPercu: null,
+          clos: false,
+          fraisMaintenance: 9999,
+          depenses: [{ id: 'loyer', libelle: 'Loyer', montant: 4500, icone: 'logement' }],
+        },
+      },
+    })
+    expect(fraisDuMois(p, '2026-03')).toBe(4500)
+  })
+
+  it('pèsent sur les charges fixes du mois, donc sur son reste', () => {
+    const p = profil({
+      depenses: modele,
+      mois: {
+        '2026-03': {
+          cle: '2026-03',
+          revenuPercu: null,
+          clos: false,
+          depenses: [{ id: 'loyer', libelle: 'Loyer', montant: 4500, icone: 'logement' }],
+        },
+      },
+    })
+    const mars = situationMois(p, '2026-03')
+    // 50 % de 12 000 alloués à la maintenance, 4 500 de charges
+    expect(mars.chargesFixes).toBe(4500)
+    expect(mars.reste.maintenance).toBe(1500)
+  })
+
+  it('nourrissent l’avancement de l’année', () => {
+    const p = profil({
+      depenses: modele,
+      mois: {
+        '2026-01': {
+          cle: '2026-01',
+          revenuPercu: null,
+          clos: false,
+          depenses: [{ id: 'loyer', libelle: 'Loyer', montant: 6000, icone: 'logement' }],
+        },
+      },
+    })
+    const [janvier, fevrier] = cumulAnnee(p, 2026, '2026-02')
+    expect(janvier.maintenance).toBe(6000)
+    expect(fevrier.maintenance).toBe(4000)
+    // 12 000 − 6 000 puis 12 000 − 4 000
+    expect(fevrier.cumulNet).toBe(14000)
+  })
+})
+
+/**
+ * Le cumul ne repart jamais de zéro le 1er janvier : ce que 2026 a laissé
+ * entre dans 2027. Sans ça, l'avancement d'une vie tient sur douze mois.
+ */
+describe('le cumul traverse les années', () => {
+  const loyer = [{ id: 'loyer', libelle: 'Loyer', montant: 3000, icone: 'logement' as const }]
+
+  /** Suivi démarré en janvier 2026 : 12 000 par mois, 3 000 de frais. */
+  const base = () =>
+    profil({
+      depenses: loyer,
+      mois: { '2026-01': { cle: '2026-01', revenuPercu: 12000, clos: false } },
+    })
+
+  it('janvier reprend là où décembre s’était arrêté', () => {
+    const p = base()
+    const decembre = cumulAnnee(p, 2026, '2027-06')[11]
+    const janvier = cumulAnnee(p, 2027, '2027-06')[0]
+
+    // 12 mois à 9 000 de net
+    expect(decembre.cumulNet).toBe(108000)
+    expect(janvier.cumulNet).toBe(decembre.cumulNet + janvier.net)
+    expect(janvier.cumulNet).toBe(117000)
+  })
+
+  it('donne le report d’une année sur l’autre', () => {
+    const p = base()
+    expect(reportAvantAnnee(p, 2027, '2027-06').net).toBe(108000)
+    expect(reportAvantAnnee(p, 2027, '2027-06').revenu).toBe(144000)
+    expect(reportAvantAnnee(p, 2027, '2027-06').maintenance).toBe(36000)
+  })
+
+  it('n’a rien à reporter sur la première année du suivi', () => {
+    expect(reportAvantAnnee(base(), 2026, '2026-06').net).toBe(0)
+  })
+
+  it('ignore les années antérieures au suivi', () => {
+    const p = base()
+    // le suivi commence en 2026 : 2025 ne compte aucun mois
+    const lignes2025 = cumulAnnee(p, 2025, '2027-06')
+    expect(lignes2025.every((l) => !l.renseigne)).toBe(true)
+    expect(lignes2025[11].cumulNet).toBe(0)
+    expect(reportAvantAnnee(p, 2026, '2027-06').net).toBe(0)
+  })
+
+  it('cumule sur trois années de suite', () => {
+    const p = base()
+    expect(cumulAnnee(p, 2028, '2028-12')[11].cumulNet).toBe(324000)
+  })
+
+  it('un mois détaillé d’une année ancienne se voit dans le report', () => {
+    const p = profil({
+      depenses: loyer,
+      mois: {
+        '2026-01': { cle: '2026-01', revenuPercu: 12000, clos: false },
+        '2026-05': {
+          cle: '2026-05',
+          revenuPercu: null,
+          clos: false,
+          depenses: [{ id: 'loyer', libelle: 'Loyer', montant: 6000, icone: 'logement' }],
+        },
+      },
+    })
+    // mai coûte 3 000 de plus : le report de 2027 baisse d'autant
+    expect(reportAvantAnnee(p, 2027, '2027-06').net).toBe(105000)
+  })
+})
+
+/**
+ * Une ligne du tableau annuel est un cycle de paie, pas un mois de calendrier :
+ * le salaire touché en août doit être confronté aux frais de septembre, le
+ * mois qu'il fait vivre. Sinon le « net » ne correspond à aucun mois réel.
+ */
+describe('le salaire et les frais qu’il couvre', () => {
+  const loyer = [{ id: 'loyer', libelle: 'Loyer', montant: 2744, icone: 'logement' as const }]
+
+  /** Salaire le 28, il finance le mois suivant. Septembre coûte 3 200. */
+  const p = () =>
+    profil({
+      depenses: loyer,
+      versementSalaire: { jour: 28, financeMoisSuivant: true },
+      mois: {
+        '2026-08': { cle: '2026-08', revenuPercu: 5600, clos: false },
+        '2026-09': { cle: '2026-09', revenuPercu: null, fraisMaintenance: 3200, clos: false },
+      },
+    })
+
+  it('met les frais de septembre sur la ligne d’août', () => {
+    const lignes = cumulAnnee(p(), 2026, '2026-08')
+    const aout = lignes[7]
+    const septembre = lignes[8]
+
+    expect(aout.moisFinance).toBe('2026-09')
+    expect(aout.revenu).toBe(5600)
+    expect(aout.maintenance).toBe(3200)
+    // 5 600 touchés en août, 3 200 de frais en septembre
+    expect(aout.net).toBe(2400)
+
+    // la ligne de septembre porte les frais d'octobre, pas les siens
+    expect(septembre.moisFinance).toBe('2026-10')
+  })
+
+  it('ne change rien quand le salaire finance son propre mois', () => {
+    const sansDecalage = profil({
+      depenses: loyer,
+      mois: {
+        '2026-08': { cle: '2026-08', revenuPercu: 5600, clos: false },
+        '2026-09': { cle: '2026-09', revenuPercu: null, fraisMaintenance: 3200, clos: false },
+      },
+    })
+    const lignes = cumulAnnee(sansDecalage, 2026, '2026-09')
+    expect(lignes[7].moisFinance).toBe('2026-08')
+    expect(lignes[7].maintenance).toBe(2744)
+    expect(lignes[8].maintenance).toBe(3200)
+  })
+
+  it('donne le même reste que la fiche du mois vécu', () => {
+    const profilDecale = p()
+    const aout = cumulAnnee(profilDecale, 2026, '2026-08')[7]
+    const septembre = situationMois(profilDecale, '2026-09')
+
+    // les deux vues parlent du même mois vécu : mêmes chiffres
+    expect(septembre.revenu).toBe(aout.revenu)
+    expect(septembre.chargesFixes).toBe(aout.maintenance)
   })
 })

@@ -65,11 +65,18 @@ export type MoisSuivi = {
   /** Revenu réellement perçu ; `null` = celui du profil. */
   revenuPercu: number | null
   /**
-   * Frais de maintenance de ce mois-là ; absent ou `null` = le total déclaré
-   * du profil. Un loyer qui augmente ou une facture exceptionnelle ne valent
-   * que pour leur mois : ils ne réécrivent pas le passé.
+   * Total des frais de ce mois-là, saisi en un seul chiffre ; absent ou
+   * `null` = celui du modèle. Un loyer qui augmente ou une facture
+   * exceptionnelle ne valent que pour leur mois : ils ne réécrivent pas le
+   * passé.
    */
   fraisMaintenance?: number | null
+  /**
+   * Les postes de frais propres à ce mois, ligne à ligne. Absent ou `null` =
+   * ceux du modèle. Détailler un mois efface son total saisi en un chiffre :
+   * les deux ne coexistent jamais, sinon deux vérités se contredisent.
+   */
+  depenses?: Depense[] | null
   /** Un mois clos transmet son reste au mois suivant. */
   clos: boolean
 }
@@ -98,9 +105,19 @@ export type Objectif = {
   montant: number
   /** Clé « AAAA-MM » du mois d'achat visé. */
   moisCible: string
-  categorie: Extract<Categorie, 'objectifs' | 'fun'>
+  /** Le poste qui le finance. La maintenance et les dettes n'en sont pas : la
+   *  première est subie, la seconde se rembourse. */
+  categorie: Exclude<Categorie, 'maintenance' | 'dettes'>
   /** Ce qui est déjà mis de côté pour lui. */
   dejaMisDeCote: number
+  /**
+   * D'où vient le rythme : le ratio du poste, ou un montant décidé.
+   * Les deux à la fois n'aurait aucun sens — c'est l'un ou l'autre.
+   * Absent : déduit de `versementMensuel`, pour les objectifs déjà enregistrés.
+   */
+  financement?: 'poste' | 'montant'
+  /** Ce que vous décidez de mettre de côté chaque mois, en mode « montant ». */
+  versementMensuel?: number | null
   /** Vrai une fois l'achat inscrit au calendrier, pour ne pas le compter deux fois. */
   achatEnregistre?: boolean
   note?: string
@@ -111,10 +128,18 @@ export type Objectif = {
  * Salaire cumulé + salaire du mois − frais de maintenance = avancement.
  */
 export type CumulMois = {
+  /** Le mois où le salaire tombe. */
   cle: string
+  /**
+   * Le mois que ce salaire fait vivre — le même, sauf si le salaire finance
+   * le mois suivant. Ce sont ses frais qu'il faut couvrir, pas ceux du mois
+   * où l'argent est arrivé.
+   */
+  moisFinance: string
   /** Vrai si le mois compte : il est passé, ou son salaire a été saisi d'avance. */
   renseigne: boolean
   revenu: number
+  /** Les frais du mois financé. */
   maintenance: number
   /** revenu − maintenance : ce que le mois ajoute vraiment. */
   net: number

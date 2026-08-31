@@ -21,7 +21,7 @@ export type Note = {
 }
 
 /** Les garde-fous du context §7.5 : courts, utiles, actionnables. */
-export const NOTES: Note[] = [
+const NOTES: Note[] = [
   {
     id: 'maintenance-vs-fun',
     titre: 'Pourquoi séparer maintenance et fun money',

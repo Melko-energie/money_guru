@@ -13,12 +13,14 @@ carrière complète.
 
 | | |
 |---|---|
-| Stack | Vite · React 18 · TypeScript · Tailwind · framer-motion |
+| Stack | Vite 5 · React 18 · TypeScript · Tailwind 3 · framer-motion |
 | Données | `localStorage`, clé `money-guru:profil:v2` — aucun compte, aucun serveur |
 | Saisie | Manuelle uniquement : aucune synchronisation ni importation bancaire |
 | Devise | MAD par défaut, formatage multi-devise (EUR, USD, GBP, AED, CAD, CHF) |
-| Cible | Laptop / grand écran (≥ 1024 px) |
+| Écrans | Téléphone et grand écran — deux mises en page, aucune fonction perdue |
+| Adressage | Ancre : `#/mois/suivi`, `#/strategie/objectifs`… rechargement et retour arrière |
 | Ports | dev **6012** · backend réservé **3012** · prod Docker **6112** |
+| Tests | 257 · `tsc --noEmit` propre · build vert |
 
 ## Démarrer
 
@@ -36,22 +38,66 @@ npm run dev
 
 → http://localhost:6012 · arrêt `.\stop-all.bat` · prod nginx `.\deploy.bat` → :6112
 
-## Les six vues
+Au premier lancement l'application est **vide** : elle pose ses questions en huit étapes
+plutôt que d'afficher des chiffres inventés. Le parcours se reprend là où on s'est
+arrêté, et se relance depuis « Mes chiffres ».
 
-- **Tableau de bord** — zone haute (revenu net, méthode, devise, score de marge de
-  manœuvre), alertes contextuelles, rangée défilante des six catégories avec curseurs,
-  jauge du fonds d'urgence à paliers, bandeau de dette avec limite d'emprunt, zone
-  calendrier du mois réel, anneau de répartition, projection sur 42 ans, zone pédagogique.
-- **Comparer les méthodes** — les cinq stratégies projetées sur vos chiffres réels, avec
-  le coût ou le gain d'un changement, en capital de carrière.
-- **Calendrier des dépenses** — grille mensuelle, total par jour, détail du jour
-  sélectionné, ajout / modification / suppression, jours anormalement élevés, récurrences
-  projetées sur les mois suivants et écart prévu contre réel par catégorie.
-- **Simulateur « et si… »** — montant initial, versement, taux, durée, devise, moment du
-  versement. Courbe, comparaison 3/5/7/10 %, et différence entre deux scénarios.
-- **Mon patrimoine** — les cinq classes de capital, mobilisable contre biens d'usage.
-- **Mes chiffres** — toutes les saisies : revenu, devise, frais de maintenance ligne à
-  ligne, méthode, ratios, fonds d'urgence, dettes, rendement retenu.
+## Les huit vues, en cinq sections
+
+| Section | Vue | Ce qu'elle répond |
+|---|---|---|
+| Tableau de bord | Tableau de bord | Où j'en suis ce mois-ci |
+| Mon mois | Calendrier des dépenses | Où part l'argent, jour par jour |
+| Mon mois | Suivi mensuel | Ce que le mois laisse, et ce qu'il transmet |
+| Ma stratégie | Comparer les méthodes | Ce que coûte ou rapporte un changement de stratégie |
+| Ma stratégie | Mes objectifs | Cet achat à cette date, réalisable ou pas |
+| Ma stratégie | Simulateur « et si… » | Ce que produit un versement régulier |
+| Mon patrimoine | Mon patrimoine | Ce qui est mobilisable, ce qui ne l'est pas |
+| Mes chiffres | Mes chiffres | Toutes les saisies au même endroit |
+
+Trois chemins vers ces vues : les sections en toutes lettres dans la barre du haut, le
+rail d'icônes à gauche, et au téléphone la barre basse à trois pastilles plus une feuille
+qui liste les huit.
+
+## Le mois, unité de suivi
+
+C'est le cœur de l'application. Un mois n'est pas une donnée isolée.
+
+- **Un revenu par mois.** 5 000 en août et 15 000 en septembre ne donnent pas la même
+  répartition. Toute l'application — allocation, alertes, budgets du calendrier, capacité
+  d'un objectif — suit le revenu du mois regardé.
+- **Le mois que le salaire finance.** Un salaire touché le 28 fait vivre le mois suivant.
+  Le réglage est dans « Mes chiffres » ; quand il est actif, le budget de septembre est
+  rempli par le salaire d'août, et chaque ligne du tableau annuel le dit : *finance sept.*
+- **Des frais par mois.** Les frais de maintenance se règlent poste par poste, pour le
+  modèle qui vaut partout ou pour un mois précis. Un loyer qui augmente en mars ne
+  réécrit pas janvier. Le détail d'un mois prime sur son total en un chiffre, qui prime
+  sur le modèle.
+- **Les frais déclarés sortent sans saisie.** Ils sont comptés comme dépensés dans toutes
+  les vues : c'est ce qui évite d'afficher « 0 dépensé sur la maintenance » pendant qu'on
+  paie son loyer.
+- **Le reste passe au mois suivant**, catégorie par catégorie, dès que le mois est clos.
+  Le report n'est jamais stocké : il est recalculé depuis le premier mois porteur de
+  données, donc corriger un mois ancien se propage tout seul.
+- **Le cumul traverse les années.** Janvier reprend le total de décembre. Le suivi
+  commence à la première année porteuse de données, jamais avant.
+
+## Les objectifs
+
+Un achat, une date, un verdict. L'application confronte le montant visé à ce que la
+situation finance réellement d'ici l'échéance, aux salaires annoncés pour ces mois-là.
+
+Le financement est **un choix, jamais deux réglages côte à côte** :
+
+- **par un poste** — objectifs, fun money, capital productif ou fonds d'urgence : le
+  ratio du poste donne le rythme ;
+- **par un montant fixe** — ce que vous décidez de mettre de côté chaque mois.
+
+Les conseils sont chiffrés et conditionnels : rythme exact à tenir, mois d'atteinte réel
+au rythme actuel, points de ratio à trouver ailleurs que dans la maintenance, budget que
+la situation finance vraiment, priorité au fonds d'urgence incomplet, alerte quand
+l'engagement dépasse ce qui reste une fois les frais payés. Le jour venu, « Enregistrer
+l'achat » inscrit une vraie ligne au calendrier, une seule fois.
 
 ## Les six catégories
 
@@ -66,13 +112,21 @@ npm run dev
 
 ## Règles de calcul
 
-- `montant_categorie = revenu_net_mensuel × ratio_categorie`, ratios verrouillés à 100 %.
-- `pression_maintenance = frais_maintenance / revenu_net` — alerte au-delà de 60 %.
+- `montant_categorie = revenu_du_mois × ratio_categorie`, ratios verrouillés à 100 %.
+  Les parts se règlent au curseur ou au chiffre exact, point par point.
+- `pression_maintenance = frais_du_mois / revenu_du_mois` — alerte au-delà de 60 %.
 - `objectif_fonds_urgence = frais_maintenance × 6`, paliers 1 / 3 / 6 mois, progression
   affichée **en mois couverts** autant qu'en pourcentage.
 - Dette sans intérêt : `limite_emprunt = revenu_net × multiplicateur`,
   `ratio_remboursement = remboursement_mensuel / revenu_net` — alerte au-delà de 20 %
   ou de la limite.
+- Suivi mensuel : `reste = report_entrant + alloué − frais_déclarés − dépenses_saisies`.
+  Seul un mois clos transmet son reste.
+- Avancement annuel : `salaire_cumulé + salaire_du_mois − frais_du_mois_financé`.
+  Un mois compte dès qu'il est passé, ou dès que son salaire est saisi d'avance.
+- Objectif : `effort_mensuel = (montant − déjà_de_côté) / mois_restants`, échéance
+  incluse. Le mois d'atteinte se calcule en avançant mois par mois, jamais en divisant :
+  les salaires annoncés ne sont pas identiques d'un mois à l'autre.
 - Projection : `taux_mensuel = taux_annuel / 12`, capitalisation mensuelle, **versements
   en début de mois**, horizon principal **42 ans**.
   `capital_final = C₀(1+i)ⁿ + V·((1+i)ⁿ−1)/i·(1+i)` · `gain_brut = capital − versé`.
@@ -98,15 +152,21 @@ calculateur de zakat** : aucun seuil ni taux n'est appliqué.
 
 ## Design
 
-Structure reprise de `inspo/dashboard.png` : fenêtre en grand rectangle, rails latéraux
-en verre en couche arrière, carte blanche qui les chevauche, colonne large + colonne
-étroite, carrousel de cartes, panneau de statistiques sombre. Habillage **charte Melko**
-(Encre, Papier, Forêt, Saphir), étendue de trois teintes pour couvrir les six
-catégories : ardoise (maintenance), prune (objectifs), ambre (fun money), brique
-(dettes et alertes). Typo Inter + Instrument Serif.
+Mise en page reprise de `Template/T1.png` : barre supérieure flottante en verre, rail
+d'icônes détaché, grille colonne étroite · large · étroite, bouton ↗ par carte.
+Charte de couleurs relevée sur `Template/T2.png` — glacé `#D9EDF4`, bleu `#74B5D5`,
+olive `#767D2F`, olive profond `#2F370E`, encre `#27282A` — plus deux teintes hors
+nuancier pour les états : alerte `#B4452F`, succès `#2E7D5B`. Typo Inter + Instrument
+Serif.
 
-Animations : entrée en cascade, blobs d'ambiance, transitions de vue en spring. Bouton
-**animations on/off** dans le rail, `prefers-reduced-motion` respecté d'office.
+Téléphone : principes repris de `Template/T3-T5.png` — barre basse à trois pastilles,
+feuille de menu plein écran, feuilles glissantes pour les réglages. Ce n'est pas la
+version bureau rétrécie : le disque de synthèse, la liste des postes, la liste des
+dépenses et les cartes de l'avancement annuel sont des mises en page distinctes, montées
+seules. **Aucune fonction du grand écran n'est absente du téléphone.**
+
+Animations : entrée en cascade, halos d'ambiance, transitions de vue. Bouton
+**animations on/off** dans « Mes chiffres », `prefers-reduced-motion` respecté d'office.
 
 ## Vérifier
 
@@ -116,6 +176,28 @@ npx tsc --noEmit
 npx vitest run
 npm run build
 ```
+
+Les tests couvrent les calculs (allocation, urgence, dette, projection, score), le
+calendrier et ses récurrences, la chaîne mensuelle et son report, le cumul pluriannuel,
+la faisabilité des objectifs, la recherche, le parcours d'accueil, la structure des vues
+et la parité téléphone.
+
+## Déployer
+
+**Netlify** — `netlify.toml` à la racine : base `ui`, commande `npm run build`, dossier
+publié `dist`, Node 20, toute adresse retombe sur la page unique.
+
+```bash
+git push
+```
+
+En dépôt non connecté, générer puis déposer le dossier `ui/dist` :
+
+```bash
+npm run build --prefix ui
+```
+
+**Docker / nginx** — `.\deploy.bat` → http://localhost:6112
 
 ## Partage sur le réseau local
 
@@ -129,17 +211,25 @@ New-NetFirewallRule -DisplayName "Money Guru 6012" -Direction Inbound -Protocol 
 
 ```
 money_guru/
-├── inspo/dashboard.png          maquette de référence
-├── context.md · questions.md    brief produit v2.0 et points à trancher
+├── netlify.toml                 déploiement : base ui, publie ui/dist
+├── Template/                    T1 mise en page · T2 charte · T3-T5 téléphone
+├── context.md · questions.md    brief produit et points à trancher
 ├── ui/src/
-│   ├── App.tsx                  fenêtre, rails en verre, transitions de vue
-│   ├── components/              rails, barre supérieure, anneau, courbe, jauge,
-│   │                            alertes, pédagogie, champs
-│   ├── features/                tableau · methodes · calendrier · simulateur ·
-│   │                            patrimoine · reglages
-│   ├── lib/                     calculs · methodes · calendrier · pedagogie · format ·
-│   │                            graphiques · animations · donneesDemo · types
-│   └── state/                   finances (localStorage) · animations
+│   ├── App.tsx                  coquille, rail, transitions de vue
+│   ├── components/              barre supérieure, rail, barre basse, feuilles,
+│   │                            carte, chiffre, champs, anneau, courbe, jauge
+│   ├── features/
+│   │   ├── onboarding/          le parcours en huit étapes
+│   │   ├── tableau/             tableau de bord, bureau et téléphone
+│   │   ├── calendrier/          grille, liste mobile, vue annuelle
+│   │   ├── suivi/               fiche du mois, avancement de l'année
+│   │   ├── objectifs/           achats prévus et leur faisabilité
+│   │   ├── methodes/ simulateur/ patrimoine/ reglages/
+│   ├── lib/                     calculs · suivi · objectifs · calendrier · methodes ·
+│   │                            pedagogie · recherche · sections · format ·
+│   │                            graphiques · animations · definitions · types
+│   ├── state/                   finances (localStorage) · navigation · animations · media
+│   └── test/                    profil de test — jamais livré à l'application
 ├── server/                      réservé, vierge
 ├── Dockerfile · nginx.conf · docker-compose.yml
 └── start-all.bat · stop-all.bat · deploy.bat

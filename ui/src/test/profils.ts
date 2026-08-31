@@ -8,7 +8,7 @@ import type { Categorie, DepenseDatee, Depense, ProfilFinancier } from '../lib/t
  * tests, avec des chiffres stables.
  */
 /** Frais de maintenance personnelle par défaut (context §4). */
-export const DEPENSES_DE_TEST: Depense[] = [
+const DEPENSES_DE_TEST: Depense[] = [
   { id: 'logement', libelle: 'Logement', montant: 3200, icone: 'logement' },
   { id: 'nourriture', libelle: 'Nourriture', montant: 1800, icone: 'alimentation' },
   { id: 'energie', libelle: 'Eau & électricité', montant: 450, icone: 'energie' },

@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
+  ArrowLeftRight,
   Car,
   HandCoins,
   Heart,
@@ -35,10 +37,12 @@ import { BarreProgression } from '../../components/BarreProgression'
 import { DetailScore } from '../../components/JaugeScore'
 import { COULEURS_CATEGORIE, LIBELLES_CATEGORIE } from '../../lib/definitions'
 import { METHODES } from '../../lib/methodes'
-import { CATEGORIES, MOIS_OBJECTIF_URGENCE } from '../../lib/calculs'
+import { CATEGORIES, MOIS_OBJECTIF_URGENCE, fraisMaintenance } from '../../lib/calculs'
+import { decalerMois, libelleMois, moisDeLAnnee } from '../../lib/calendrier'
+import { moisDetaille, postesDuMois } from '../../lib/suivi'
 import { DEVISES, formaterDevise, formaterPourcent, formaterRatio } from '../../lib/format'
 import { conteneurCascade, elementApparition, elementLateral } from '../../lib/animations'
-import type { CleIcone, CodeDevise, MethodeAllocation } from '../../lib/types'
+import type { CleIcone, CodeDevise, Depense, MethodeAllocation } from '../../lib/types'
 
 const ICONES_DEPENSE: Record<CleIcone, typeof Home> = {
   logement: Home,
@@ -57,6 +61,7 @@ export function PageReglages() {
   const {
     profil,
     frais,
+    revenuMois,
     pression,
     resteVital,
     objectifUrgence,
@@ -73,6 +78,8 @@ export function PageReglages() {
     definirDepense,
     ajouterDepense,
     retirerDepense,
+    definirPostesDuMois,
+    anneeAffichee,
     definirMethode,
     definirAllocation,
     definirSoldeUrgence,
@@ -81,6 +88,60 @@ export function PageReglages() {
     reinitialiser,
     reprendreOnboarding,
   } = useFinances()
+
+  /** `null` = le modèle qui vaut pour tous les mois non détaillés. */
+  const [moisRegle, setMoisRegle] = useState<string | null>(null)
+
+  const postes = moisRegle ? postesDuMois(profil, moisRegle) : profil.depenses
+  const detaille = moisRegle !== null && moisDetaille(profil, moisRegle)
+  const totalPostes = fraisMaintenance(postes)
+
+  // deux années proposées : celle qu'on regarde et la suivante, de quoi
+  // préparer une hausse de loyer sans quitter la page
+  const optionsMois = [
+    { valeur: 'modele', libelle: 'Modèle — tous les mois' },
+    ...[anneeAffichee, anneeAffichee + 1].flatMap((a) =>
+      moisDeLAnnee(a).map((cle) => ({
+        valeur: cle,
+        libelle: moisDetaille(profil, cle)
+          ? `${libelleMois(cle)} — détaillé`
+          : libelleMois(cle),
+      })),
+    ),
+  ]
+
+  /**
+   * Toute correction va au mois choisi, ou au modèle s'il n'y en a pas.
+   * Détailler un mois part d'une copie du modèle : on corrige, on n'invente pas.
+   */
+  const majPoste = (id: string, champs: Partial<Depense>) =>
+    moisRegle === null
+      ? definirDepense(id, champs)
+      : definirPostesDuMois(
+          moisRegle,
+          postes.map((d) => (d.id === id ? { ...d, ...champs } : d)),
+        )
+
+  const ajouterPoste = () =>
+    moisRegle === null
+      ? ajouterDepense()
+      : definirPostesDuMois(moisRegle, [
+          ...postes,
+          {
+            id: `frais-${moisRegle}-${postes.length + 1}`,
+            libelle: 'Nouveau poste',
+            montant: 0,
+            icone: 'autre',
+          },
+        ])
+
+  const retirerPoste = (id: string) =>
+    moisRegle === null
+      ? retirerDepense(id)
+      : definirPostesDuMois(
+          moisRegle,
+          postes.filter((d) => d.id !== id),
+        )
 
   return (
     <motion.div
@@ -174,7 +235,11 @@ export function PageReglages() {
           <EnteteSection
             icone={Home}
             titre="Frais de maintenance personnelle"
-            sousTitre="Ligne à ligne, le coût de votre vie stable"
+            sousTitre={
+              moisRegle
+                ? `Les postes de ${libelleMois(moisRegle).toLowerCase()}`
+                : 'Ligne à ligne, le coût de votre vie stable'
+            }
           />
           <p className="mb-4 text-[12.5px] leading-relaxed text-meta">
             Le coût mensuel pour maintenir une vie stable : logement, nourriture, eau, électricité,
@@ -183,8 +248,59 @@ export function PageReglages() {
             de base au fonds d’urgence.
           </p>
 
+          <div className="mb-4 border-b border-encre/[0.06] pb-4">
+            <Selecteur
+              libelle="Mois à régler"
+              valeur={moisRegle ?? 'modele'}
+              options={optionsMois}
+              onChange={(v) => setMoisRegle(v === 'modele' ? null : v)}
+              aide={
+                moisRegle === null
+                  ? 'Le modèle s’applique à tous les mois que vous n’avez pas détaillés.'
+                  : detaille
+                    ? 'Ce mois a ses propres postes : les autres gardent le modèle.'
+                    : 'Ce mois suit encore le modèle. Votre première correction ne vaudra que pour lui.'
+              }
+            />
+
+            {/* le lien entre les deux vues, écrit noir sur blanc : sans lui on
+                ne sait pas quel salaire paiera les frais qu'on est en train de
+                saisir */}
+            {moisRegle ? (
+              <p className="mt-2.5 inline-flex flex-wrap items-center gap-1.5 rounded-2xl bg-papier-100 px-3.5 py-2.5 text-[11.5px] font-semibold text-meta">
+                <ArrowLeftRight size={13} className="shrink-0" />
+                Frais de{' '}
+                <span className="text-encre">{libelleMois(moisRegle).toLowerCase()}</span>
+                {profil.versementSalaire.financeMoisSuivant ? (
+                  <>
+                    — couverts par le salaire touché le {profil.versementSalaire.jour}{' '}
+                    <span className="text-encre">
+                      {libelleMois(decalerMois(moisRegle, -1)).toLowerCase()}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    — couverts par le salaire du{' '}
+                    <span className="text-encre">{libelleMois(moisRegle).toLowerCase()}</span>
+                  </>
+                )}
+              </p>
+            ) : null}
+
+            {moisRegle && detaille ? (
+              <button
+                type="button"
+                onClick={() => definirPostesDuMois(moisRegle, null)}
+                className="mt-2.5 inline-flex items-center gap-1.5 rounded-pilule bg-papier-100 px-3.5 py-2 text-[12px] font-semibold text-meta transition-all duration-300 hover:-translate-y-0.5 hover:text-encre active:translate-y-0"
+              >
+                <RotateCcw size={13} />
+                Rendre ce mois au modèle
+              </button>
+            ) : null}
+          </div>
+
           <div className="flex flex-col gap-2.5">
-            {profil.depenses.map((depense) => {
+            {postes.map((depense) => {
               const Icone = ICONES_DEPENSE[depense.icone] ?? HandCoins
               return (
                 <div
@@ -200,7 +316,7 @@ export function PageReglages() {
                   <input
                     value={depense.libelle}
                     aria-label={`Libellé du poste ${depense.libelle}`}
-                    onChange={(e) => definirDepense(depense.id, { libelle: e.target.value })}
+                    onChange={(e) => majPoste(depense.id, { libelle: e.target.value })}
                     className="h-9 min-w-0 flex-1 basis-[calc(100%-3.25rem)] rounded-xl border border-transparent bg-transparent px-2 text-[14px] font-semibold text-encre outline-none transition-colors focus:border-encre/10 focus:bg-white sm:basis-auto"
                   />
 
@@ -213,7 +329,7 @@ export function PageReglages() {
                       aria-label={`Montant de ${depense.libelle}`}
                       onFocus={(e) => e.currentTarget.select()}
                       onChange={(e) =>
-                        definirDepense(depense.id, { montant: Math.max(0, Number(e.target.value)) })
+                        majPoste(depense.id, { montant: Math.max(0, Number(e.target.value)) })
                       }
                       className="h-9 w-24 rounded-xl bg-transparent px-3 text-right text-[14px] font-bold tabular-nums text-encre outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
@@ -224,7 +340,7 @@ export function PageReglages() {
 
                   <button
                     type="button"
-                    onClick={() => retirerDepense(depense.id)}
+                    onClick={() => retirerPoste(depense.id)}
                     title={`Supprimer ${depense.libelle}`}
                     className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-meta transition-colors duration-300 hover:bg-brique-tint hover:text-brique-deep"
                   >
@@ -238,7 +354,7 @@ export function PageReglages() {
 
           <button
             type="button"
-            onClick={ajouterDepense}
+            onClick={ajouterPoste}
             className="mt-3 inline-flex items-center gap-1.5 rounded-pilule border border-dashed border-encre/20 px-4 py-2 text-[12.5px] font-semibold text-meta transition-all duration-300 hover:-translate-y-0.5 hover:border-encre/40 hover:text-encre active:translate-y-0"
           >
             <Plus size={14} />
@@ -248,10 +364,10 @@ export function PageReglages() {
           <div className="mt-5 grid gap-3 border-t border-encre/[0.06] pt-4 sm:grid-cols-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-meta">
-                Total maintenance
+                {moisRegle ? `Total ${libelleMois(moisRegle).toLowerCase()}` : 'Total maintenance'}
               </p>
               <p className="mt-0.5 text-[19px] font-bold tabular-nums text-encre">
-                {formaterDevise(frais, profil.devise, 0)}
+                {formaterDevise(totalPostes, profil.devise, 0)}
               </p>
             </div>
             <div>
@@ -259,7 +375,9 @@ export function PageReglages() {
                 Pression sur le revenu
               </p>
               <p className="mt-0.5 text-[19px] font-bold tabular-nums text-encre">
-                {formaterRatio(pression)}
+                {formaterRatio(
+                  moisRegle && revenuMois > 0 ? totalPostes / revenuMois : pression,
+                )}
               </p>
             </div>
             <div>
@@ -268,10 +386,12 @@ export function PageReglages() {
               </p>
               <p
                 className={`mt-0.5 text-[19px] font-bold tabular-nums ${
-                  resteVital < 0 ? 'text-brique' : 'text-foret-deep'
+                  (moisRegle ? revenuMois - totalPostes : resteVital) < 0
+                    ? 'text-brique'
+                    : 'text-foret-deep'
                 }`}
               >
-                {formaterDevise(resteVital, profil.devise, 0)}
+                {formaterDevise(moisRegle ? revenuMois - totalPostes : resteVital, profil.devise, 0)}
               </p>
             </div>
           </div>

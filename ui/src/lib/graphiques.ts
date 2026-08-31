@@ -1,7 +1,7 @@
 export type Point = { x: number; y: number }
 
 /** Convertit une position sur le cercle (0 = midi, sens horaire) en coordonnées. */
-export function pointCercle(cx: number, cy: number, rayon: number, ratio: number): Point {
+function pointCercle(cx: number, cy: number, rayon: number, ratio: number): Point {
   const angle = (ratio - 0.25) * Math.PI * 2
   return { x: cx + rayon * Math.cos(angle), y: cy + rayon * Math.sin(angle) }
 }
@@ -27,10 +27,6 @@ export function arcAnneau(
   return `M ${p1.x.toFixed(3)} ${p1.y.toFixed(3)} A ${rayon} ${rayon} 0 ${grandArc} 1 ${p2.x.toFixed(3)} ${p2.y.toFixed(3)}`
 }
 
-/** Périmètre d'un cercle, pratique pour animer un `stroke-dashoffset`. */
-export function perimetre(rayon: number): number {
-  return 2 * Math.PI * rayon
-}
 
 /** Interpolation monotone (Catmull-Rom adouci) pour une courbe sans oscillation. */
 export function cheminCourbe(points: Point[]): string {

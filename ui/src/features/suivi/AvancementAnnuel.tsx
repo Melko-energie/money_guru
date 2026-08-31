@@ -1,11 +1,11 @@
 import { useMemo } from 'react'
-import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react'
+import { ArrowDownRight, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react'
 import { useFinances } from '../../state/finances'
 import { useEstMobile } from '../../state/media'
 import { Carte } from '../../components/Carte'
 import { Chiffre } from '../../components/Chiffre'
-import { cleMoisDe, decalerMois, libelleMoisCourt } from '../../lib/calendrier'
-import { cumulAnnee } from '../../lib/suivi'
+import { anneeDeCle, cleMoisDe, libelleMoisCourt } from '../../lib/calendrier'
+import { cumulAnnee, fraisDuMois, reportAvantAnnee } from '../../lib/suivi'
 import { formaterDevise } from '../../lib/format'
 
 /**
@@ -21,7 +21,6 @@ import { formaterDevise } from '../../lib/format'
 export function AvancementAnnuel() {
   const {
     profil,
-    frais,
     moisAffiche,
     anneeAffichee: annee,
     definirMoisAffiche,
@@ -32,10 +31,10 @@ export function AvancementAnnuel() {
   const mobile = useEstMobile()
 
   const lignes = useMemo(() => cumulAnnee(profil, annee), [profil, annee])
+  const report = useMemo(() => reportAvantAnnee(profil, annee), [profil, annee])
   const devise = profil.devise
   const moisCourant = cleMoisDe()
   const decalage = profil.versementSalaire.financeMoisSuivant
-  const fraisDeclares = frais
   const bilan = lignes[lignes.length - 1]
   const comptes = lignes.filter((l) => l.renseigne).length
 
@@ -74,7 +73,11 @@ export function AvancementAnnuel() {
         <Chiffre
           libelle="Salaire cumulé"
           valeur={formaterDevise(bilan.cumulRevenu, devise, 0)}
-          sens={`Sur ${comptes} mois comptés`}
+          sens={
+            report.net === 0
+              ? `Sur ${comptes} mois comptés`
+              : `Report compris, ${comptes} mois comptés en ${annee}`
+          }
         />
         <Chiffre
           libelle="Maintenance cumulée"
@@ -84,16 +87,32 @@ export function AvancementAnnuel() {
         <Chiffre
           libelle="Avancement"
           valeur={formaterDevise(bilan.cumulNet, devise, 0)}
-          sens="Ce que l’année vous a réellement laissé"
+          sens="Ce que votre suivi vous a laissé"
           accent={bilan.cumulNet >= 0 ? 'text-succes-deep' : 'text-alerte-deep'}
           taille="grand"
         />
       </div>
 
+      {report.net !== 0 ? (
+        <p className="mt-4 inline-flex items-center gap-2 self-start rounded-pilule bg-papier-100 px-3.5 py-2 text-[11.5px] font-semibold text-meta">
+          <ArrowDownRight size={13} />
+          Report de {annee - 1} :{' '}
+          <span
+            className={`tabular-nums ${
+              report.net >= 0 ? 'text-succes-deep' : 'text-alerte-deep'
+            }`}
+          >
+            {formaterDevise(report.net, devise, 0)}
+          </span>
+          <span className="font-medium">— janvier repart de là</span>
+        </p>
+      ) : null}
+
       {mobile ? (
         <ul className="mt-5 flex flex-col gap-2 border-t border-encre/[0.06] pt-4">
           {lignes.map((l) => {
             const actif = l.cle === moisAffiche
+            const fraisRetenus = fraisDuMois(profil, l.moisFinance)
             return (
               <li
                 key={l.cle}
@@ -115,7 +134,7 @@ export function AvancementAnnuel() {
                     ) : null}
                     {decalage ? (
                       <span className="block text-[10.5px] font-medium leading-tight text-meta">
-                        finance {libelleMoisCourt(decalerMois(l.cle, 1)).toLowerCase()}
+                        finance {libelleMoisCourt(l.moisFinance).toLowerCase()}
                       </span>
                     ) : null}
                   </span>
@@ -154,20 +173,20 @@ export function AvancementAnnuel() {
 
                   <label className="flex flex-col gap-1">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-meta">
-                      Frais
+                      {decalage ? `Frais ${libelleMoisCourt(l.moisFinance).toLowerCase()}` : 'Frais'}
                     </span>
                     <input
                       type="number"
                       min={0}
                       step="any"
                       inputMode="decimal"
-                      value={profil.mois[l.cle]?.fraisMaintenance ?? ''}
-                      placeholder={String(Math.round(l.renseigne ? l.maintenance : fraisDeclares))}
-                      aria-label={`Frais de ${libelleMoisCourt(l.cle)} ${annee}`}
+                      value={profil.mois[l.moisFinance]?.fraisMaintenance ?? ''}
+                      placeholder={String(Math.round(fraisRetenus))}
+                      aria-label={`Frais de ${libelleMoisCourt(l.moisFinance)} ${anneeDeCle(l.moisFinance)}`}
                       onFocus={(e) => e.currentTarget.select()}
                       onChange={(e) =>
                         definirFraisMois(
-                          l.cle,
+                          l.moisFinance,
                           e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
                         )
                       }
@@ -209,7 +228,7 @@ export function AvancementAnnuel() {
                 Salaire
               </th>
               <th scope="col" className="py-2 text-right font-semibold">
-                Maintenance
+                {decalage ? 'Frais du mois financé' : 'Maintenance'}
               </th>
               <th scope="col" className="py-2 text-right font-semibold">
                 Net du mois
@@ -223,6 +242,7 @@ export function AvancementAnnuel() {
             {lignes.map((l) => {
               const saisi = profil.mois[l.cle]?.revenuPercu
               const actif = l.cle === moisAffiche
+              const fraisRetenus = fraisDuMois(profil, l.moisFinance)
               return (
                 <tr
                   key={l.cle}
@@ -241,7 +261,7 @@ export function AvancementAnnuel() {
                     ) : null}
                     {decalage ? (
                       <span className="block text-[10px] font-medium leading-tight text-meta">
-                        finance {libelleMoisCourt(decalerMois(l.cle, 1)).toLowerCase()}
+                        finance {libelleMoisCourt(l.moisFinance).toLowerCase()}
                       </span>
                     ) : null}
                   </th>
@@ -272,13 +292,13 @@ export function AvancementAnnuel() {
                       min={0}
                       step="any"
                       inputMode="decimal"
-                      value={profil.mois[l.cle]?.fraisMaintenance ?? ''}
-                      placeholder={String(Math.round(l.renseigne ? l.maintenance : fraisDeclares))}
-                      aria-label={`Frais de ${libelleMoisCourt(l.cle)} ${annee}`}
+                      value={profil.mois[l.moisFinance]?.fraisMaintenance ?? ''}
+                      placeholder={String(Math.round(fraisRetenus))}
+                      aria-label={`Frais de ${libelleMoisCourt(l.moisFinance)} ${anneeDeCle(l.moisFinance)}`}
                       onFocus={(e) => e.currentTarget.select()}
                       onChange={(e) =>
                         definirFraisMois(
-                          l.cle,
+                          l.moisFinance,
                           e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
                         )
                       }

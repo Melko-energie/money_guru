@@ -5,7 +5,7 @@ import type { Depense, ProfilFinancier } from './types'
  * Les postes que l'onboarding propose de chiffrer.
  * Ce ne sont pas des données : ce sont des questions, toutes à zéro.
  */
-export const POSTES_SUGGERES: Depense[] = [
+const POSTES_SUGGERES: Depense[] = [
   { id: 'logement', libelle: 'Logement', montant: 0, icone: 'logement' },
   { id: 'nourriture', libelle: 'Nourriture', montant: 0, icone: 'alimentation' },
   { id: 'energie', libelle: 'Eau & électricité', montant: 0, icone: 'energie' },

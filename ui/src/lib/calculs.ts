@@ -33,7 +33,7 @@ export const CATEGORIES: Categorie[] = [
 ]
 
 /** Les postes qui construisent la sécurité et le futur (context §5.2, §5.3). */
-export const CATEGORIES_FUTUR: Categorie[] = ['urgence', 'dettes', 'investissement', 'objectifs']
+const CATEGORIES_FUTUR: Categorie[] = ['urgence', 'dettes', 'investissement', 'objectifs']
 
 /* ------------------------------------------------------------------ */
 /* Frais de maintenance personnelle                                    */

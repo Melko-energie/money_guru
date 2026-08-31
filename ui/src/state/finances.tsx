@@ -147,8 +147,10 @@ type ValeurContexte = {
   chaineDuSuivi: SituationMois[]
   ficheDuMois: MoisSuivi
   definirRevenuPercu: (cle: string, valeur: number | null) => void
-  /** Frais de maintenance propres à un mois ; `null` reprend ceux du profil. */
+  /** Total de frais propre à un mois ; `null` reprend celui du modèle. */
   definirFraisMois: (cle: string, valeur: number | null) => void
+  /** Postes de frais d'un mois ; `cle` nulle règle le modèle, `depenses` nulle rend au modèle. */
+  definirPostesDuMois: (cle: string | null, depenses: Depense[] | null) => void
   definirVersementSalaire: (champs: Partial<VersementSalaire>) => void
   basculerCloture: (cle: string) => void
   /* Objectifs : un achat, une date, un poste qui le finance. */
@@ -271,7 +273,11 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
     }))
   }, [])
 
-  /** Des frais propres à un mois ; `null` remet ceux du profil. */
+  /**
+   * Un total de frais propre à un mois ; `null` remet ceux du modèle.
+   * Donner un total efface le détail de ce mois : le dernier réglage
+   * remplace l'autre, jamais deux vérités côte à côte.
+   */
   const definirFraisMois = useCallback((cle: string, valeur: number | null) => {
     setProfil((p) => ({
       ...p,
@@ -281,9 +287,29 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
           ...ficheMois(p, cle),
           cle,
           fraisMaintenance: valeur === null ? null : Math.max(0, valeur),
+          depenses: null,
         },
       },
     }))
+  }, [])
+
+  /**
+   * Les postes de frais d'un mois, ligne à ligne.
+   * `cle` à `null` règle le modèle qui vaut pour tous les mois non détaillés ;
+   * `depenses` à `null` rend le mois au modèle.
+   */
+  const definirPostesDuMois = useCallback((cle: string | null, depenses: Depense[] | null) => {
+    setProfil((p) => {
+      if (cle === null) return { ...p, depenses: depenses ?? PROFIL_VIDE.depenses }
+      return {
+        ...p,
+        mois: {
+          ...p.mois,
+          // détailler un mois rend son total en un chiffre caduc
+          [cle]: { ...ficheMois(p, cle), cle, depenses, fraisMaintenance: null },
+        },
+      }
+    })
   }, [])
 
   const definirVersementSalaire = useCallback((champs: Partial<VersementSalaire>) => {
@@ -485,6 +511,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
       ficheDuMois: ficheMois(profil, moisAffiche),
       definirRevenuPercu,
       definirFraisMois,
+      definirPostesDuMois,
       definirVersementSalaire,
       basculerCloture,
       ajouterObjectif,
@@ -559,6 +586,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
     definirAnnee,
     definirRevenuPercu,
     definirFraisMois,
+    definirPostesDuMois,
     definirVersementSalaire,
     basculerCloture,
     ajouterObjectif,
@@ -578,9 +606,4 @@ export function useFinances() {
   const c = useContext(Ctx)
   if (!c) throw new Error('useFinances hors FournisseurFinances')
   return c
-}
-
-/** Raccourci : formate un montant dans la devise du profil. */
-export function useDevise() {
-  return useFinances().profil.devise
 }
