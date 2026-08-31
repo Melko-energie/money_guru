@@ -32,6 +32,8 @@ import {
   Selecteur,
 } from '../../components/Champs'
 import { BasculeAnimations } from '../../components/BasculeAnimations'
+import { CarteSynchro } from './CarteSynchro'
+import { CarteSauvegarde } from './CarteSauvegarde'
 import { EnteteSection } from '../../components/EnteteSection'
 import { BarreProgression } from '../../components/BarreProgression'
 import { DetailScore } from '../../components/JaugeScore'
@@ -589,15 +591,24 @@ export function PageReglages() {
           <BasculeAnimations />
         </motion.section>
 
+        <motion.section variants={elementLateral}>
+          <CarteSynchro />
+        </motion.section>
+
+        <motion.section variants={elementLateral}>
+          <CarteSauvegarde />
+        </motion.section>
+
         <motion.aside
           variants={elementLateral}
           className="rounded-carte bg-encre p-5 text-white shadow-carte"
         >
-          <p className="text-[13px] font-bold">Vos données restent chez vous</p>
+          <p className="text-[13px] font-bold">Ce que Money Guru ne fait pas</p>
           <p className="mt-2 text-[12px] leading-relaxed text-white/60">
-            Tout est enregistré dans le stockage local de votre navigateur. Aucun compte, aucun
-            serveur, aucune connexion bancaire. Money Guru ne déplace pas un dirham : il montre les
-            résultats prévus d’une stratégie, rien de plus.
+            Aucune connexion bancaire, aucun paiement, aucun conseil placé. Money Guru ne déplace
+            pas un dirham : il montre les résultats prévus d’une stratégie, rien de plus. Vos
+            chiffres vivent dans ce navigateur, et ne partent ailleurs que si vous reliez vos
+            appareils vous-même.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button

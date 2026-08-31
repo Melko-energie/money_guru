@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, PiggyBank, Plus, Trash2 } from 'lucide-re
 import { useFinances } from '../../state/finances'
 import { ChampMontant, Selecteur } from '../../components/Champs'
 import { BarreProgression } from '../../components/BarreProgression'
+import { RecupererAilleurs } from '../../components/Synchro'
 import { CATEGORIES, fraisMaintenance } from '../../lib/calculs'
 import { METHODES } from '../../lib/methodes'
 import { DEVISES, formaterDevise, formaterPourcent } from '../../lib/format'
@@ -114,13 +115,14 @@ export function PageOnboarding() {
         aria-hidden
       />
 
+      <div className="relative flex w-full max-w-[620px] flex-col gap-4">
       <motion.section
         key={etape.cle}
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
         aria-label={`Étape ${index + 1} sur ${ETAPES.length} — ${etape.titre}`}
-        className="relative w-full max-w-[620px] rounded-carte border border-white/70 bg-white/85 p-6 shadow-fenetre backdrop-blur-2xl sm:p-8"
+        className="relative w-full rounded-carte border border-white/70 bg-white/85 p-6 shadow-fenetre backdrop-blur-2xl sm:p-8"
       >
         <div className="mb-6 flex items-center gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-olive-soft to-olive-deep text-white">
@@ -396,6 +398,11 @@ export function PageOnboarding() {
         </div>
 
       </motion.section>
+
+        {/* un téléphone neuf n'a pas d'autre porte : le questionnaire couvre
+            tout l'écran tant qu'il n'a pas de réponses */}
+        <RecupererAilleurs />
+      </div>
     </div>
   )
 }

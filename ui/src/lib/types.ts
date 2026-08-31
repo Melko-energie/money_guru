@@ -210,6 +210,12 @@ export type ProfilFinancier = {
   /** Achats prévus à échéance, du plus proche au plus lointain. */
   objectifs: Objectif[]
   onboarding: Onboarding
+  /**
+   * Date ISO de la dernière modification, posée à chaque changement.
+   * Elle sert d'arbitre entre deux appareils : la copie la plus récente gagne.
+   * Absente sur un profil enregistré avant la synchronisation.
+   */
+  majLe?: string
 }
 
 /** Versements en début de mois par défaut (context §6.5). */

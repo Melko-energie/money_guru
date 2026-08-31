@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import { FournisseurAnimations } from './state/animations'
 import { FournisseurFinances } from './state/finances'
+import { FournisseurSynchro } from './state/synchro'
 
 import '@fontsource/inter/400.css'
 import '@fontsource/inter/500.css'
@@ -20,7 +21,10 @@ createRoot(racine).render(
   <StrictMode>
     <FournisseurAnimations>
       <FournisseurFinances>
-        <App />
+        {/* la synchronisation lit et écrit le profil : elle vit sous lui */}
+        <FournisseurSynchro>
+          <App />
+        </FournisseurSynchro>
       </FournisseurFinances>
     </FournisseurAnimations>
   </StrictMode>,

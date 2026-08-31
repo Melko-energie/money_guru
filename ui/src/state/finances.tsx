@@ -16,7 +16,6 @@ import {
   moisPourSolderDette,
   moisRestantsUrgence,
   montantsAlloues,
-  normaliserAllocation,
   objectifFondsUrgence,
   paliersUrgence,
   partFutur,
@@ -51,6 +50,8 @@ import {
   situationMois,
 } from '../lib/suivi'
 import { PROFIL_VIDE } from '../lib/profilVide'
+import { normaliserProfil } from '../lib/profil'
+import { horodatage } from '../lib/synchro'
 import type {
   BilanMois,
   MoisSuivi,
@@ -74,29 +75,7 @@ function lireStockage(): ProfilFinancier {
   try {
     const brut = window.localStorage.getItem(CLE_STOCKAGE)
     if (!brut) return PROFIL_VIDE
-    const enregistre = JSON.parse(brut) as Partial<ProfilFinancier>
-    return {
-      ...PROFIL_VIDE,
-      ...enregistre,
-      allocation: normaliserAllocation({
-        ...PROFIL_VIDE.allocation,
-        ...(enregistre.allocation ?? {}),
-      }),
-      dettes: { ...PROFIL_VIDE.dettes, ...(enregistre.dettes ?? {}) },
-      patrimoine: { ...PROFIL_VIDE.patrimoine, ...(enregistre.patrimoine ?? {}) },
-      depenses:
-        Array.isArray(enregistre.depenses) && enregistre.depenses.length
-          ? enregistre.depenses
-          : PROFIL_VIDE.depenses,
-      onboarding: { ...PROFIL_VIDE.onboarding, ...(enregistre.onboarding ?? {}) },
-      journal: Array.isArray(enregistre.journal) ? enregistre.journal : PROFIL_VIDE.journal,
-      mois: enregistre.mois && typeof enregistre.mois === 'object' ? enregistre.mois : {},
-      objectifs: Array.isArray(enregistre.objectifs) ? enregistre.objectifs : [],
-      versementSalaire: {
-        ...PROFIL_VIDE.versementSalaire,
-        ...(enregistre.versementSalaire ?? {}),
-      },
-    }
+    return normaliserProfil(JSON.parse(brut) as Partial<ProfilFinancier>)
   } catch {
     return PROFIL_VIDE
   }
@@ -181,6 +160,8 @@ type ValeurContexte = {
   /** Matérialise une occurrence projetée en dépense réellement saisie. */
   materialiserOccurrence: (occurrence: DepenseDatee) => void
   reinitialiser: () => void
+  /** Remplace le profil entier par une copie venue d'ailleurs, date comprise. */
+  remplacerProfil: (profil: ProfilFinancier) => void
   /** Parcours de remplissage : étape en cours et validation finale. */
   definirEtapeOnboarding: (etape: number) => void
   terminerOnboarding: () => void
@@ -200,19 +181,42 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
     }
   }, [profil])
 
+  /**
+   * Toute modification passe par ici, et repart datée.
+   * Cette date est l'arbitre entre deux appareils : sans elle, impossible de
+   * savoir quelle copie est la plus fraîche. Une action qui ne change rien
+   * n'y touche pas, sinon un simple affichage ferait vieillir l'autre copie.
+   */
+  const modifier = useCallback((transformer: (p: ProfilFinancier) => ProfilFinancier) => {
+    const date = horodatage()
+    setProfil((p) => {
+      const suivant = transformer(p)
+      return suivant === p ? p : { ...suivant, majLe: date }
+    })
+  }, [])
+
+  /**
+   * Pose une copie entière, sa date d'origine comprise.
+   * C'est la synchronisation qui l'appelle quand elle rapatrie l'autre
+   * appareil : redater ici ferait croire à une modification locale.
+   */
+  const remplacerProfil = useCallback((suivant: ProfilFinancier) => {
+    setProfil(suivant)
+  }, [])
+
   const majProfil = useCallback((champs: Partial<ProfilFinancier>) => {
-    setProfil((p) => ({ ...p, ...champs }))
+    modifier((p) => ({ ...p, ...champs }))
   }, [])
 
   const definirDepense = useCallback((id: string, champs: Partial<Depense>) => {
-    setProfil((p) => ({
+    modifier((p) => ({
       ...p,
       depenses: p.depenses.map((d) => (d.id === id ? { ...d, ...champs } : d)),
     }))
   }, [])
 
   const ajouterDepense = useCallback(() => {
-    setProfil((p) => ({
+    modifier((p) => ({
       ...p,
       depenses: [
         ...p.depenses,
@@ -227,17 +231,17 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
   }, [])
 
   const retirerDepense = useCallback((id: string) => {
-    setProfil((p) => ({ ...p, depenses: p.depenses.filter((d) => d.id !== id) }))
+    modifier((p) => ({ ...p, depenses: p.depenses.filter((d) => d.id !== id) }))
   }, [])
 
   /** Choisir une méthode applique ses ratios ; « personnalisée » garde les vôtres. */
   const definirMethode = useCallback((methode: MethodeAllocation) => {
-    setProfil((p) => ({ ...p, methode, allocation: ratiosMethode(methode, p.allocation) }))
+    modifier((p) => ({ ...p, methode, allocation: ratiosMethode(methode, p.allocation) }))
   }, [])
 
   /** Toucher un curseur bascule automatiquement en stratégie personnalisée. */
   const definirAllocation = useCallback((categorie: Categorie, valeur: number) => {
-    setProfil((p) => ({
+    modifier((p) => ({
       ...p,
       methode: 'personnalisee',
       allocation: ajusterAllocation(p.allocation, categorie, valeur),
@@ -245,11 +249,11 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
   }, [])
 
   const definirDettes = useCallback((champs: Partial<Dettes>) => {
-    setProfil((p) => ({ ...p, dettes: { ...p.dettes, ...champs } }))
+    modifier((p) => ({ ...p, dettes: { ...p.dettes, ...champs } }))
   }, [])
 
   const definirPatrimoine = useCallback((cle: CategorieCapital, v: number) => {
-    setProfil((p) => ({ ...p, patrimoine: { ...p.patrimoine, [cle]: Math.max(0, v) } }))
+    modifier((p) => ({ ...p, patrimoine: { ...p.patrimoine, [cle]: Math.max(0, v) } }))
   }, [])
 
   const [moisAffiche, setMoisAffiche] = useState<string>(() => cleMoisDe())
@@ -264,7 +268,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
   }, [])
 
   const definirRevenuPercu = useCallback((cle: string, valeur: number | null) => {
-    setProfil((p) => ({
+    modifier((p) => ({
       ...p,
       mois: {
         ...p.mois,
@@ -279,7 +283,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
    * remplace l'autre, jamais deux vérités côte à côte.
    */
   const definirFraisMois = useCallback((cle: string, valeur: number | null) => {
-    setProfil((p) => ({
+    modifier((p) => ({
       ...p,
       mois: {
         ...p.mois,
@@ -299,7 +303,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
    * `depenses` à `null` rend le mois au modèle.
    */
   const definirPostesDuMois = useCallback((cle: string | null, depenses: Depense[] | null) => {
-    setProfil((p) => {
+    modifier((p) => {
       if (cle === null) return { ...p, depenses: depenses ?? PROFIL_VIDE.depenses }
       return {
         ...p,
@@ -313,7 +317,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
   }, [])
 
   const definirVersementSalaire = useCallback((champs: Partial<VersementSalaire>) => {
-    setProfil((p) => {
+    modifier((p) => {
       const jour = champs.jour === undefined ? p.versementSalaire.jour : champs.jour
       return {
         ...p,
@@ -328,14 +332,14 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
 
   /** Clore un mois transmet son reste au suivant ; le rouvrir le retient. */
   const basculerCloture = useCallback((cle: string) => {
-    setProfil((p) => {
+    modifier((p) => {
       const fiche = ficheMois(p, cle)
       return { ...p, mois: { ...p.mois, [cle]: { ...fiche, cle, clos: !fiche.clos } } }
     })
   }, [])
 
   const ajouterObjectif = useCallback((objectif: Omit<Objectif, 'id'>) => {
-    setProfil((p) => ({
+    modifier((p) => ({
       ...p,
       objectifs: [
         ...p.objectifs,
@@ -345,14 +349,14 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
   }, [])
 
   const modifierObjectif = useCallback((id: string, champs: Partial<Objectif>) => {
-    setProfil((p) => ({
+    modifier((p) => ({
       ...p,
       objectifs: p.objectifs.map((o) => (o.id === id ? { ...o, ...champs } : o)),
     }))
   }, [])
 
   const retirerObjectif = useCallback((id: string) => {
-    setProfil((p) => ({ ...p, objectifs: p.objectifs.filter((o) => o.id !== id) }))
+    modifier((p) => ({ ...p, objectifs: p.objectifs.filter((o) => o.id !== id) }))
   }, [])
 
   /**
@@ -361,7 +365,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
    * deux fois.
    */
   const enregistrerAchat = useCallback((id: string) => {
-    setProfil((p) => {
+    modifier((p) => {
       const objectif = p.objectifs.find((o) => o.id === id)
       if (!objectif || objectif.achatEnregistre) return p
       const { annee, mois } = decomposerMois(objectif.moisCible)
@@ -390,7 +394,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
   }, [])
 
   const ajouterLigneJournal = useCallback((ligne: Omit<DepenseDatee, 'id'>) => {
-    setProfil((p) => {
+    modifier((p) => {
       const id = `saisie-${ligne.date}-${p.journal.length + 1}-${Math.round(ligne.montant)}`
       const suivant = {
         ...p,
@@ -406,7 +410,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
   }, [])
 
   const modifierLigneJournal = useCallback((id: string, champs: Partial<DepenseDatee>) => {
-    setProfil((p) => {
+    modifier((p) => {
       const avant = p.journal.find((l) => l.id === id)
       if (!avant) return p
       const apres = { ...avant, ...champs }
@@ -424,7 +428,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
   }, [])
 
   const retirerLigneJournal = useCallback((id: string) => {
-    setProfil((p) => {
+    modifier((p) => {
       const ligne = p.journal.find((l) => l.id === id)
       if (!ligne) return p
       const suivant = { ...p, journal: p.journal.filter((l) => l.id !== id) }
@@ -434,7 +438,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
 
   /** Une occurrence projetée n'existe qu'en mémoire : l'accepter la fige dans le journal. */
   const materialiserOccurrence = useCallback((occurrence: DepenseDatee) => {
-    setProfil((p) => {
+    modifier((p) => {
       const id = `saisie-${occurrence.date}-${occurrence.serie ?? 'serie'}`
       if (p.journal.some((l) => l.id === id)) return p
       // le drapeau `projetee` ne doit surtout pas être persisté : la ligne
@@ -520,7 +524,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
       enregistrerAchat,
       definirPrenom: (v: string) => majProfil({ prenom: v }),
       definirDevise: (v: CodeDevise) =>
-        setProfil((p) => ({
+        modifier((p) => ({
           ...p,
           devise: v,
           // le journal suit la devise du profil : on ne mélange pas les unités
@@ -533,7 +537,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
       definirMethode,
       definirAllocation,
       definirSoldeUrgence: (v: number) =>
-        setProfil((p) => ({
+        modifier((p) => ({
           ...p,
           soldeFondsUrgence: Math.max(0, v),
           // le fonds d'urgence fait partie du capital liquide
@@ -545,7 +549,7 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
         majProfil({ tauxRendementAnnuel: Math.min(20, Math.max(0, v)) }),
       definirRedirection: (c) => majProfil({ redirectionApresUrgence: c }),
       appliquerRedirection: () =>
-        setProfil((p) => {
+        modifier((p) => {
           if (p.allocation.urgence <= 0) return p
           return {
             ...p,
@@ -558,22 +562,25 @@ export function FournisseurFinances({ children }: { children: ReactNode }) {
       retirerLigneJournal,
       materialiserOccurrence,
       reinitialiser: () => {
-        setProfil(PROFIL_VIDE)
+        modifier(() => PROFIL_VIDE)
         setMoisAffiche(cleMoisDe())
       },
+      remplacerProfil,
       definirEtapeOnboarding: (etape: number) =>
-        setProfil((p) => ({
+        modifier((p) => ({
           ...p,
           onboarding: { ...p.onboarding, etape: Math.max(0, etape) },
         })),
       terminerOnboarding: () =>
-        setProfil((p) => ({ ...p, onboarding: { ...p.onboarding, termine: true } })),
+        modifier((p) => ({ ...p, onboarding: { ...p.onboarding, termine: true } })),
       /** Revenir au parcours pour corriger, sans rien perdre. */
       reprendreOnboarding: () =>
-        setProfil((p) => ({ ...p, onboarding: { etape: 0, termine: false } })),
+        modifier((p) => ({ ...p, onboarding: { etape: 0, termine: false } })),
     }
   }, [
     profil,
+    modifier,
+    remplacerProfil,
     majProfil,
     definirDepense,
     ajouterDepense,

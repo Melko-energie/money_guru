@@ -14,13 +14,14 @@ carrière complète.
 | | |
 |---|---|
 | Stack | Vite 5 · React 18 · TypeScript · Tailwind 3 · framer-motion |
-| Données | `localStorage`, clé `money-guru:profil:v2` — aucun compte, aucun serveur |
-| Saisie | Manuelle uniquement : aucune synchronisation ni importation bancaire |
+| Données | `localStorage`, clé `money-guru:profil:v2` — source locale, toujours |
+| Appareils | Synchronisation facultative par Supabase, éteinte par défaut |
+| Saisie | Manuelle uniquement : aucune importation bancaire |
 | Devise | MAD par défaut, formatage multi-devise (EUR, USD, GBP, AED, CAD, CHF) |
 | Écrans | Téléphone et grand écran — deux mises en page, aucune fonction perdue |
 | Adressage | Ancre : `#/mois/suivi`, `#/strategie/objectifs`… rechargement et retour arrière |
 | Ports | dev **6012** · backend réservé **3012** · prod Docker **6112** |
-| Tests | 257 · `tsc --noEmit` propre · build vert |
+| Tests | 285 · `tsc --noEmit` propre · build vert |
 
 ## Démarrer
 
@@ -168,6 +169,60 @@ seules. **Aucune fonction du grand écran n'est absente du téléphone.**
 Animations : entrée en cascade, halos d'ambiance, transitions de vue. Bouton
 **animations on/off** dans « Mes chiffres », `prefers-reduced-motion` respecté d'office.
 
+## Vos appareils
+
+Les mêmes chiffres sur l'ordinateur et sur le téléphone, sans rien exporter à la main.
+La fonction est **facultative et éteinte par défaut** : sans les deux variables
+d'environnement, l'application reste ce qu'elle a toujours été — un site sans compte ni
+serveur, dont la bibliothèque Supabase est même absente du téléchargement.
+
+**Installer.** Créer un projet Supabase, exécuter `supabase/schema.sql` dans son éditeur
+SQL, puis renseigner `ui/.env` d'après `ui/.env.example` :
+
+```
+VITE_SUPABASE_URL=https://votre-projet.supabase.co
+VITE_SUPABASE_ANON_KEY=votre-cle-anon-publique
+```
+
+La clé « anon » est publique par nature. La sécurité ne repose pas sur son secret mais
+sur les règles de ligne posées par le script : chacun ne lit et n'écrit que la sienne.
+La clé « service_role » n'a rien à faire ici.
+
+**Se connecter.** Dans « Mes chiffres », carte *Vos appareils* : une adresse e-mail, un
+lien reçu, aucun mot de passe à retenir. Le lien revient sur la page par la requête
+(`?code=`) et non par l'ancre, pour ne pas écraser l'adresse de la vue ouverte.
+
+Sur un appareil neuf, le questionnaire d'accueil occupe tout l'écran : il porte donc sa
+propre porte, **« J'ai déjà mes chiffres sur un autre appareil »**. C'est le chemin à
+prendre — un profil arrivé vierge récupère l'autre sans rien demander, alors qu'un
+questionnaire rempli d'abord déclencherait un conflit inutile.
+
+**Ce qui circule.** Une ligne par personne, le profil entier dans une colonne JSON.
+Aucun calcul n'est fait à distance : la base ne sert qu'à transporter la copie.
+
+| Règle | Comportement |
+|---|---|
+| Source locale | `localStorage` reste la vérité de l'appareil ; sans réseau, tout continue |
+| Envoi | Automatique, quelques secondes après la dernière frappe |
+| Arbitrage | La copie la plus récente gagne — chaque modification est datée |
+| Conflit | Si les deux copies ont bougé depuis le dernier échange, l'application **s'arrête et demande**, en montrant les chiffres de chacune |
+| Appareil neuf | Un profil jamais rempli prend la copie distante sans rien demander |
+| Déconnexion | Ne supprime rien sur l'appareil |
+
+## Copie de sécurité
+
+Dans « Mes chiffres », carte *Copie de sécurité* : **Enregistrer une copie** dépose un
+fichier `money-guru-AAAA-MM-JJ.json` sur le disque, **Restaurer une copie** le relit.
+
+Le stockage d'un navigateur se vide sans prévenir — nettoyage, session privée, machine
+changée. Un fichier, lui, reste. Il ne dépend ni du réseau ni d'un compte.
+
+Restaurer remplace tout, donc l'application montre d'abord ce que le fichier contient —
+prénom, revenu, mois renseignés, dépenses, objectifs — et attend une confirmation. Un
+fichier qui n'est pas un profil Money Guru est refusé avant d'être ouvert ; un profil
+d'une version antérieure est complété par les valeurs vides plutôt que rejeté. La copie
+restaurée repart datée du jour : c'est elle qui l'emporte sur les autres appareils.
+
 ## Vérifier
 
 ```bat
@@ -179,13 +234,19 @@ npm run build
 
 Les tests couvrent les calculs (allocation, urgence, dette, projection, score), le
 calendrier et ses récurrences, la chaîne mensuelle et son report, le cumul pluriannuel,
-la faisabilité des objectifs, la recherche, le parcours d'accueil, la structure des vues
-et la parité téléphone.
+la faisabilité des objectifs, la recherche, le parcours d'accueil, la structure des vues,
+la parité téléphone, et l'arbitrage entre deux appareils.
 
 ## Déployer
 
 **Netlify** — `netlify.toml` à la racine : base `ui`, commande `npm run build`, dossier
 publié `dist`, Node 20, toute adresse retombe sur la page unique.
+
+Pour la synchronisation, déclarer `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` dans
+les variables d'environnement du site : elles sont lues à la construction, pas à
+l'exécution. Il faut donc reconstruire après les avoir ajoutées. Et dans Supabase,
+inscrire l'adresse du site dans *Authentication → URL Configuration*, sinon le lien de
+connexion ne saura pas où revenir.
 
 ```bash
 git push
@@ -212,23 +273,30 @@ New-NetFirewallRule -DisplayName "Money Guru 6012" -Direction Inbound -Protocol 
 ```
 money_guru/
 ├── netlify.toml                 déploiement : base ui, publie ui/dist
+├── supabase/schema.sql          table des profils et règles de ligne
 ├── Template/                    T1 mise en page · T2 charte · T3-T5 téléphone
 ├── context.md · questions.md    brief produit et points à trancher
+├── ui/.env.example              les deux variables de la synchronisation
 ├── ui/src/
 │   ├── App.tsx                  coquille, rail, transitions de vue
 │   ├── components/              barre supérieure, rail, barre basse, feuilles,
-│   │                            carte, chiffre, champs, anneau, courbe, jauge
+│   │                            carte, chiffre, champs, anneau, courbe, jauge,
+│   │                            synchro (connexion, choix entre deux copies)
 │   ├── features/
 │   │   ├── onboarding/          le parcours en huit étapes
 │   │   ├── tableau/             tableau de bord, bureau et téléphone
 │   │   ├── calendrier/          grille, liste mobile, vue annuelle
 │   │   ├── suivi/               fiche du mois, avancement de l'année
 │   │   ├── objectifs/           achats prévus et leur faisabilité
-│   │   ├── methodes/ simulateur/ patrimoine/ reglages/
+│   │   ├── reglages/            « Mes chiffres » et la carte « Vos appareils »
+│   │   ├── methodes/ simulateur/ patrimoine/
 │   ├── lib/                     calculs · suivi · objectifs · calendrier · methodes ·
 │   │                            pedagogie · recherche · sections · format ·
-│   │                            graphiques · animations · definitions · types
-│   ├── state/                   finances (localStorage) · navigation · animations · media
+│   │                            graphiques · animations · definitions · types ·
+│   │                            synchro (arbitrage) · supabase (client) ·
+│   │                            profil (lecture et contrôle d’une sauvegarde)
+│   ├── state/                   finances (localStorage) · synchro · navigation ·
+│   │                            animations · media
 │   └── test/                    profil de test — jamais livré à l'application
 ├── server/                      réservé, vierge
 ├── Dockerfile · nginx.conf · docker-compose.yml
