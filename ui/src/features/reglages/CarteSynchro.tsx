@@ -1,12 +1,8 @@
 import { Cloud, CloudOff, LogOut, RefreshCw } from 'lucide-react'
 import { useSynchro } from '../../state/synchro'
 import { EnteteSection } from '../../components/EnteteSection'
-import {
-  BOUTON_VIDE,
-  ChoixCopie,
-  FormulaireConnexion,
-  Panne,
-} from '../../components/Synchro'
+import { BOUTON_VIDE, Panne } from '../../components/Boutons'
+import { ChoixCopie, FormulaireConnexion } from '../../components/Synchro'
 import { dateLisible } from '../../lib/synchro'
 
 /**

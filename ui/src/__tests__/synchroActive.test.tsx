@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from '../App'
 import { PROFIL_DE_TEST } from '../test/profils'
 import { FournisseurAnimations } from '../state/animations'
@@ -59,6 +59,38 @@ describe('un appareil neuf', () => {
     expect(screen.getByRole('button', { name: 'Recevoir le lien' })).toBeInTheDocument()
     // le questionnaire reste là : la récupération ne le remplace pas
     expect(screen.getByText('Étape 1 sur 8 · Bienvenue')).toBeInTheDocument()
+  })
+})
+
+/**
+ * Le chemin qui marche toujours : un fichier. Ni compte, ni réseau, ni base.
+ * C'est le filet quand la synchronisation refuse — et sur l'écran d'accueil
+ * il n'y avait aucun autre moyen d'entrer ses chiffres sans les resaisir.
+ */
+describe('ouvrir un fichier depuis l’écran d’accueil', () => {
+  it('propose la restauration à côté de la connexion', () => {
+    monter()
+    expect(screen.getByRole('button', { name: 'Restaurer une copie' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Fichier de sauvegarde à restaurer')).toBeInTheDocument()
+  })
+
+  it('ouvre l’application sur les chiffres du fichier, sans une seule question', async () => {
+    monter()
+    expect(screen.getByText('Étape 1 sur 8 · Bienvenue')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Fichier de sauvegarde à restaurer'), {
+      target: { files: [new File([JSON.stringify(PROFIL_DE_TEST)], 'copie.json')] },
+    })
+    await waitFor(() => expect(screen.getByText('Ce fichier contient')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Remplacer par ce fichier' }))
+
+    // le questionnaire disparaît : le profil restauré est déjà complet
+    await waitFor(() =>
+      expect(screen.queryByText('Étape 1 sur 8 · Bienvenue')).not.toBeInTheDocument(),
+    )
+    const enregistre = JSON.parse(window.localStorage.getItem('money-guru:profil:v2') ?? '{}')
+    expect(enregistre.revenuNet).toBe(PROFIL_DE_TEST.revenuNet)
+    expect(enregistre.onboarding.termine).toBe(true)
   })
 })
 

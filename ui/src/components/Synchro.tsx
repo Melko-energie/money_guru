@@ -1,15 +1,13 @@
 import { useId, useState } from 'react'
-import { MailCheck, Smartphone, TriangleAlert } from 'lucide-react'
+import { MailCheck, RefreshCw, Smartphone } from 'lucide-react'
 import { useFinances } from '../state/finances'
 import { useSynchro } from '../state/synchro'
 import { apercu, dateLisible, type ApercuProfil } from '../lib/synchro'
 import { formaterDevise } from '../lib/format'
+import { BOUTON_PLEIN, BOUTON_VIDE, Panne } from './Boutons'
+import { RestaurerCopie } from './Sauvegarde'
 import type { CodeDevise } from '../lib/types'
 
-const BOUTON =
-  'inline-flex items-center justify-center gap-1.5 rounded-pilule px-3.5 py-2 text-[12px] font-semibold transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 disabled:pointer-events-none disabled:opacity-40'
-export const BOUTON_PLEIN = `${BOUTON} bg-encre text-white shadow-[0_14px_28px_-18px_rgba(39,40,42,0.9)]`
-export const BOUTON_VIDE = `${BOUTON} border border-encre/[0.12] text-meta hover:border-encre/30 hover:text-encre`
 
 /**
  * Demander le lien de connexion.
@@ -63,15 +61,6 @@ export function FormulaireConnexion({ intro }: { intro?: string }) {
       </button>
       {etat === 'erreur' && message ? <Panne texte={message} /> : null}
     </form>
-  )
-}
-
-export function Panne({ texte }: { texte: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-2xl bg-brique-tint/70 p-4">
-      <TriangleAlert size={15} className="mt-0.5 shrink-0 text-brique-deep" />
-      <p className="text-[12.5px] leading-relaxed text-brique-deep">{texte}</p>
-    </div>
   )
 }
 
@@ -137,34 +126,96 @@ export function ChoixCopie() {
  * sans rien demander.
  */
 export function RecupererAilleurs() {
-  const { disponible, etat, courriel } = useSynchro()
+  const { disponible, etat, message, courriel, synchroniser, deconnecter } = useSynchro()
   const [ouvert, setOuvert] = useState(false)
 
-  if (!disponible || courriel) return null
+  if (!disponible) return null
+
+  const cadre = 'rounded-carte border border-white/70 bg-white/85 p-5 shadow-carte backdrop-blur-2xl'
 
   if (etat === 'conflit') {
     return (
-      <div className="rounded-carte border border-white/70 bg-white/85 p-5 shadow-carte backdrop-blur-2xl">
+      <div className={cadre}>
         <ChoixCopie />
+      </div>
+    )
+  }
+
+  /*
+   * Connecté, mais toujours devant les questions : c'est que la base n'a
+   * encore rien reçu. Sans ce bloc l'écran resterait muet, et on croirait
+   * la connexion cassée alors qu'il manque seulement l'envoi depuis
+   * l'appareil qui détient les chiffres.
+   */
+  if (courriel) {
+    return (
+      <div className={cadre}>
+        <p className="text-[12.5px] font-semibold text-encre">Connecté · {courriel}</p>
+
+        {etat === 'occupe' ? (
+          <p className="mt-1.5 text-[11.5px] leading-relaxed text-meta">
+            Récupération de vos chiffres…
+          </p>
+        ) : etat === 'erreur' ? (
+          <div className="mt-2">
+            {/* une panne de base ne doit jamais passer pour une base vide :
+                sans ce message, on cherche du côté du compte alors que le
+                problème est ailleurs */}
+            <Panne texte={message ?? 'La base a refusé la lecture.'} />
+          </div>
+        ) : (
+          <p className="mt-1.5 text-[11.5px] leading-relaxed text-meta">
+            La base ne contient encore aucune copie sous cette adresse. Ouvrez l’application sur
+            l’appareil qui a déjà vos chiffres et connectez-vous avec la même adresse : l’envoi
+            part tout seul.
+          </p>
+        )}
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void synchroniser()}
+            className={BOUTON_PLEIN}
+            disabled={etat === 'occupe'}
+          >
+            <RefreshCw size={13} />
+            {etat === 'occupe' ? 'En cours…' : 'Récupérer mes chiffres'}
+          </button>
+          <button type="button" onClick={() => void deconnecter()} className={BOUTON_VIDE}>
+            Utiliser une autre adresse
+          </button>
+        </div>
+
+        <div className="mt-4 border-t border-encre/[0.07] pt-4">
+          <p className="mb-2 text-[11.5px] leading-relaxed text-meta">
+            Vous avez un fichier de sauvegarde ? Il marche sans compte et sans réseau.
+          </p>
+          <RestaurerCopie />
+        </div>
       </div>
     )
   }
 
   if (!ouvert && etat !== 'lien-envoye') {
     return (
-      <button
-        type="button"
-        onClick={() => setOuvert(true)}
-        className="mx-auto inline-flex items-center gap-2 rounded-pilule border border-encre/[0.12] bg-white/70 px-4 py-2.5 text-[12.5px] font-semibold text-meta backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:border-encre/30 hover:text-encre active:translate-y-0"
-      >
-        <Smartphone size={14} />
-        J’ai déjà mes chiffres sur un autre appareil
-      </button>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => setOuvert(true)}
+          className="inline-flex items-center gap-2 rounded-pilule border border-encre/[0.12] bg-white/70 px-4 py-2.5 text-[12.5px] font-semibold text-meta backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:border-encre/30 hover:text-encre active:translate-y-0"
+        >
+          <Smartphone size={14} />
+          J’ai déjà mes chiffres sur un autre appareil
+        </button>
+        {/* le fichier ne dépend de rien : il reste la porte qui marche
+            toujours, même sans compte et sans réseau */}
+        <RestaurerCopie />
+      </div>
     )
   }
 
   return (
-    <div className="rounded-carte border border-white/70 bg-white/85 p-5 shadow-carte backdrop-blur-2xl">
+    <div className={cadre}>
       <FormulaireConnexion intro="Connectez-vous avec l’adresse déjà utilisée : vos chiffres arriveront ici tels quels, et vous n’aurez aucune question à reprendre." />
     </div>
   )

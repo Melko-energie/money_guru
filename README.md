@@ -13,35 +13,126 @@ carrière complète.
 
 | | |
 |---|---|
-| Stack | Vite 5 · React 18 · TypeScript · Tailwind 3 · framer-motion |
+| Stack | Vite 5 · React 18 · TypeScript strict · Tailwind 3 · framer-motion |
+| Dépendances | 7 — React, framer-motion, lucide-react, deux polices, Supabase |
+| Calculs | Tous dans le navigateur. Aucun calcul à distance, jamais |
 | Données | `localStorage`, clé `money-guru:profil:v2` — source locale, toujours |
-| Appareils | Synchronisation facultative par Supabase, éteinte par défaut |
+| Comptes | Facultatifs. Une adresse e-mail, un lien reçu, aucun mot de passe |
 | Saisie | Manuelle uniquement : aucune importation bancaire |
 | Devise | MAD par défaut, formatage multi-devise (EUR, USD, GBP, AED, CAD, CHF) |
 | Écrans | Téléphone et grand écran — deux mises en page, aucune fonction perdue |
 | Adressage | Ancre : `#/mois/suivi`, `#/strategie/objectifs`… rechargement et retour arrière |
 | Ports | dev **6012** · backend réservé **3012** · prod Docker **6112** |
-| Tests | 285 · `tsc --noEmit` propre · build vert |
+| Tests | 287 · `tsc --noEmit` propre · build vert |
 
-## Démarrer
+---
 
-```bat
-.\start-all.bat
-```
+# Cloner et démarrer
 
-ou à la main :
+## 1. Ce qu'il faut
 
-```bat
-cd ui
+**Node 20** ou plus récent. Rien d'autre. Pas de base de données, pas de serveur, pas de
+compte à créer pour faire tourner l'application.
+
+## 2. Installer
+
+```bash
+git clone <adresse-du-depot> money_guru
+cd money_guru/ui
 npm install
 npm run dev
 ```
 
-→ http://localhost:6012 · arrêt `.\stop-all.bat` · prod nginx `.\deploy.bat` → :6112
+L'application s'ouvre sur **http://localhost:6012**.
 
-Au premier lancement l'application est **vide** : elle pose ses questions en huit étapes
-plutôt que d'afficher des chiffres inventés. Le parcours se reprend là où on s'est
-arrêté, et se relance depuis « Mes chiffres ».
+Sous Windows, `.\start-all.bat` depuis la racine fait la même chose.
+
+## 3. Premier lancement
+
+L'application démarre **vide**. Elle ne montre aucun chiffre inventé : elle pose ses
+questions en huit étapes — prénom, devise, revenu, frais, méthode d'allocation, fonds
+d'urgence, dettes, patrimoine.
+
+Le parcours se reprend là où on s'est arrêté. Il se relance plus tard depuis « Mes
+chiffres ».
+
+À ce stade tout fonctionne : les huit vues, tous les calculs, le calendrier, les
+objectifs. Vos chiffres vivent dans le navigateur et n'en sortent pas.
+
+## 4. Activer les comptes — facultatif
+
+Sans cette étape, l'application reste locale à un appareil. Avec, chacun retrouve ses
+chiffres sur son téléphone comme sur son ordinateur.
+
+**a.** Créer un projet sur [supabase.com](https://supabase.com) — gratuit.
+
+**b.** Dans son éditeur SQL, exécuter le contenu de `supabase/schema.sql`. Il crée la
+table des profils et les règles qui enferment chacun dans sa propre ligne.
+
+**c.** Copier `ui/.env.example` vers `ui/.env` et y mettre les deux valeurs, qui se
+trouvent dans Supabase sous *Settings → API* :
+
+```
+VITE_SUPABASE_URL=https://votre-projet.supabase.co
+VITE_SUPABASE_ANON_KEY=votre-cle-anon-publique
+```
+
+**d.** Dans Supabase, *Authentication → URL Configuration* : inscrire l'adresse du site.
+Sans elle, le lien de connexion ne saura pas où revenir.
+
+**e.** Relancer `npm run dev`. Les variables sont lues au démarrage, pas en cours de
+route.
+
+> La clé « anon » est **publique par nature**. Elle est faite pour vivre dans un
+> navigateur. La sécurité ne repose pas sur son secret mais sur les règles de ligne
+> posées à l'étape **b**. La clé « service_role » n'a rien à faire ici : elle contourne
+> ces règles.
+
+## 5. Vérifier que tout est sain
+
+```bash
+cd ui
+npx tsc --noEmit
+npx vitest run
+npm run build
+```
+
+---
+
+# Comment l'application est faite
+
+Trois couches, et une règle : chacune ne fait qu'une chose.
+
+## La donnée — un seul objet
+
+Tout tient dans un objet unique, le **profil**. Revenu, postes de frais, ratios
+d'allocation, dettes, patrimoine, journal des dépenses, mois renseignés, objectifs.
+
+Il est gardé dans le stockage du navigateur, et rechargé au démarrage. À la lecture il
+passe par une normalisation qui complète les champs absents : un profil enregistré par
+une version antérieure est réparé, jamais rejeté.
+
+Toute modification passe par un seul point d'entrée, qui **date** le profil. Cette date
+est l'arbitre entre deux appareils.
+
+## Le calcul — des fonctions pures
+
+Aucune règle métier ne vit dans un composant. Tout est dans des fonctions qui prennent
+des chiffres et rendent des chiffres, sans React, sans effet de bord, sans date implicite.
+
+C'est ce qui rend les tests lisibles : on donne un profil, on attend un résultat.
+
+## L'affichage — des vues qui lisent
+
+Les vues ne calculent pas. Elles lisent ce que le contexte a déjà calculé et le mettent
+en forme. Une même valeur ne peut donc pas être calculée de deux façons dans deux écrans.
+
+Pas de routeur : la navigation vit dans l'ancre de l'adresse. Pas de gestionnaire d'état
+externe : un contexte React suffit.
+
+---
+
+# Ce que fait l'application
 
 ## Les huit vues, en cinq sections
 
@@ -59,6 +150,17 @@ arrêté, et se relance depuis « Mes chiffres ».
 Trois chemins vers ces vues : les sections en toutes lettres dans la barre du haut, le
 rail d'icônes à gauche, et au téléphone la barre basse à trois pastilles plus une feuille
 qui liste les huit.
+
+## Les six catégories
+
+| Catégorie | Rôle |
+|---|---|
+| Maintenance personnelle | Coût mensuel pour tenir une vie stable — base du fonds d'urgence |
+| Fonds d'urgence | Réserve liquide, objectif 6 mois de maintenance |
+| Dettes personnelles | Sans intérêt, auprès de particuliers — limite d'emprunt et alerte |
+| Capital productif | Construction de capital long terme, sans référence produit |
+| Objectifs | Projets datés court/moyen terme, hors urgence |
+| Fun money | Plaisir assumé parce que prévu |
 
 ## Le mois, unité de suivi
 
@@ -100,17 +202,6 @@ la situation finance vraiment, priorité au fonds d'urgence incomplet, alerte qu
 l'engagement dépasse ce qui reste une fois les frais payés. Le jour venu, « Enregistrer
 l'achat » inscrit une vraie ligne au calendrier, une seule fois.
 
-## Les six catégories
-
-| Catégorie | Rôle |
-|---|---|
-| Maintenance personnelle | Coût mensuel pour tenir une vie stable — base du fonds d'urgence |
-| Fonds d'urgence | Réserve liquide, objectif 6 mois de maintenance |
-| Dettes personnelles | Sans intérêt, auprès de particuliers — limite d'emprunt et alerte |
-| Capital productif | Construction de capital long terme, sans référence produit |
-| Objectifs | Projets datés court/moyen terme, hors urgence |
-| Fun money | Plaisir assumé parce que prévu |
-
 ## Règles de calcul
 
 - `montant_categorie = revenu_du_mois × ratio_categorie`, ratios verrouillés à 100 %.
@@ -151,7 +242,75 @@ La vue patrimoine s'inspire des grandes classes utilisées pour évaluer un patr
 dans les calculs de zakat — elle distingue le mobilisable de l'usage. **Ce n'est pas un
 calculateur de zakat** : aucun seuil ni taux n'est appliqué.
 
-## Design
+---
+
+# Les comptes
+
+## Plusieurs personnes, une même application
+
+L'application est faite pour être ouverte par n'importe qui. Chacun crée son compte avec
+sa propre adresse, et ne voit que ses chiffres.
+
+| | |
+|---|---|
+| Sans compte | Tout fonctionne. Les chiffres restent dans ce navigateur, sur cet appareil |
+| Avec un compte | Les mêmes chiffres sur tous ses appareils |
+| Entre personnes | Rien n'est partagé. Aucune requête ne peut sortir de sa propre ligne |
+
+Les inscriptions sont **ouvertes** : la première connexion crée le compte. Pour réserver
+l'application à un cercle fermé, désactiver les nouvelles inscriptions dans Supabase,
+sous *Authentication → Sign In / Providers*.
+
+## Comment on se connecte
+
+Une adresse e-mail, un lien reçu, aucun mot de passe à retenir. Il n'y a pas d'étape
+« inscription » séparée : la première connexion crée le compte.
+
+Le lien revient sur la page par la **requête** (`?code=`) et non par l'ancre, pour ne pas
+écraser l'adresse de la vue ouverte.
+
+> **Le lien doit être ouvert dans le navigateur qui l'a demandé.** Ce navigateur garde
+> un secret de son côté ; le lien seul ne suffit pas. Ouvrir le mail dans un autre
+> navigateur fait échouer la connexion.
+
+Sur un appareil neuf, le questionnaire d'accueil occupe tout l'écran. Il porte donc ses
+propres portes : **« J'ai déjà mes chiffres sur un autre appareil »** et **« Restaurer
+une copie »**. C'est le chemin à prendre — un profil arrivé vierge récupère l'autre sans
+rien demander, alors qu'un questionnaire rempli d'abord déclencherait un conflit inutile.
+
+## Ce qui circule
+
+Une ligne par personne, le profil entier dans une colonne JSON. Aucun calcul n'est fait à
+distance : la base ne sert qu'à transporter la copie.
+
+| Règle | Comportement |
+|---|---|
+| Source locale | Le stockage du navigateur reste la vérité de l'appareil ; sans réseau, tout continue |
+| Envoi | Automatique, quelques secondes après la dernière frappe |
+| Arbitrage | La copie la plus récente gagne — chaque modification est datée |
+| Conflit | Si les deux copies ont bougé depuis le dernier échange, l'application **s'arrête et demande**, en montrant les chiffres de chacune |
+| Appareil neuf | Un profil jamais rempli prend la copie distante sans rien demander |
+| Panne | Le message de la base est affiché tel quel, jamais transformé en « aucune copie » |
+| Déconnexion | Ne supprime rien sur l'appareil |
+
+## Copie de sécurité
+
+Dans « Mes chiffres », carte *Copie de sécurité* : **Enregistrer une copie** dépose un
+fichier `money-guru-AAAA-MM-JJ.json` sur le disque, **Restaurer une copie** le relit.
+
+C'est le seul chemin qui marche toujours : ni compte, ni réseau, ni base. Il est proposé
+aussi sur l'écran d'accueil, pour qu'un appareil neuf puisse s'ouvrir sur des chiffres
+existants sans dépendre de quoi que ce soit.
+
+Restaurer remplace tout, donc l'application montre d'abord ce que le fichier contient —
+prénom, revenu, mois renseignés, dépenses, objectifs — et attend une confirmation. Un
+fichier qui n'est pas un profil Money Guru est refusé avant d'être ouvert ; un profil
+d'une version antérieure est complété par les valeurs vides plutôt que rejeté. La copie
+restaurée repart datée du jour : c'est elle qui l'emporte sur les autres appareils.
+
+---
+
+# Design
 
 Mise en page reprise de `Template/T1.png` : barre supérieure flottante en verre, rail
 d'icônes détaché, grille colonne étroite · large · étroite, bouton ↗ par carte.
@@ -169,63 +328,13 @@ seules. **Aucune fonction du grand écran n'est absente du téléphone.**
 Animations : entrée en cascade, halos d'ambiance, transitions de vue. Bouton
 **animations on/off** dans « Mes chiffres », `prefers-reduced-motion` respecté d'office.
 
-## Vos appareils
+---
 
-Les mêmes chiffres sur l'ordinateur et sur le téléphone, sans rien exporter à la main.
-La fonction est **facultative et éteinte par défaut** : sans les deux variables
-d'environnement, l'application reste ce qu'elle a toujours été — un site sans compte ni
-serveur, dont la bibliothèque Supabase est même absente du téléchargement.
-
-**Installer.** Créer un projet Supabase, exécuter `supabase/schema.sql` dans son éditeur
-SQL, puis renseigner `ui/.env` d'après `ui/.env.example` :
-
-```
-VITE_SUPABASE_URL=https://votre-projet.supabase.co
-VITE_SUPABASE_ANON_KEY=votre-cle-anon-publique
-```
-
-La clé « anon » est publique par nature. La sécurité ne repose pas sur son secret mais
-sur les règles de ligne posées par le script : chacun ne lit et n'écrit que la sienne.
-La clé « service_role » n'a rien à faire ici.
-
-**Se connecter.** Dans « Mes chiffres », carte *Vos appareils* : une adresse e-mail, un
-lien reçu, aucun mot de passe à retenir. Le lien revient sur la page par la requête
-(`?code=`) et non par l'ancre, pour ne pas écraser l'adresse de la vue ouverte.
-
-Sur un appareil neuf, le questionnaire d'accueil occupe tout l'écran : il porte donc sa
-propre porte, **« J'ai déjà mes chiffres sur un autre appareil »**. C'est le chemin à
-prendre — un profil arrivé vierge récupère l'autre sans rien demander, alors qu'un
-questionnaire rempli d'abord déclencherait un conflit inutile.
-
-**Ce qui circule.** Une ligne par personne, le profil entier dans une colonne JSON.
-Aucun calcul n'est fait à distance : la base ne sert qu'à transporter la copie.
-
-| Règle | Comportement |
-|---|---|
-| Source locale | `localStorage` reste la vérité de l'appareil ; sans réseau, tout continue |
-| Envoi | Automatique, quelques secondes après la dernière frappe |
-| Arbitrage | La copie la plus récente gagne — chaque modification est datée |
-| Conflit | Si les deux copies ont bougé depuis le dernier échange, l'application **s'arrête et demande**, en montrant les chiffres de chacune |
-| Appareil neuf | Un profil jamais rempli prend la copie distante sans rien demander |
-| Déconnexion | Ne supprime rien sur l'appareil |
-
-## Copie de sécurité
-
-Dans « Mes chiffres », carte *Copie de sécurité* : **Enregistrer une copie** dépose un
-fichier `money-guru-AAAA-MM-JJ.json` sur le disque, **Restaurer une copie** le relit.
-
-Le stockage d'un navigateur se vide sans prévenir — nettoyage, session privée, machine
-changée. Un fichier, lui, reste. Il ne dépend ni du réseau ni d'un compte.
-
-Restaurer remplace tout, donc l'application montre d'abord ce que le fichier contient —
-prénom, revenu, mois renseignés, dépenses, objectifs — et attend une confirmation. Un
-fichier qui n'est pas un profil Money Guru est refusé avant d'être ouvert ; un profil
-d'une version antérieure est complété par les valeurs vides plutôt que rejeté. La copie
-restaurée repart datée du jour : c'est elle qui l'emporte sur les autres appareils.
+# Exploitation
 
 ## Vérifier
 
-```bat
+```bash
 cd ui
 npx tsc --noEmit
 npx vitest run
@@ -235,18 +344,17 @@ npm run build
 Les tests couvrent les calculs (allocation, urgence, dette, projection, score), le
 calendrier et ses récurrences, la chaîne mensuelle et son report, le cumul pluriannuel,
 la faisabilité des objectifs, la recherche, le parcours d'accueil, la structure des vues,
-la parité téléphone, et l'arbitrage entre deux appareils.
+la parité téléphone, l'arbitrage entre deux appareils, et la lecture d'un fichier de
+sauvegarde.
 
 ## Déployer
 
 **Netlify** — `netlify.toml` à la racine : base `ui`, commande `npm run build`, dossier
 publié `dist`, Node 20, toute adresse retombe sur la page unique.
 
-Pour la synchronisation, déclarer `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` dans
-les variables d'environnement du site : elles sont lues à la construction, pas à
-l'exécution. Il faut donc reconstruire après les avoir ajoutées. Et dans Supabase,
-inscrire l'adresse du site dans *Authentication → URL Configuration*, sinon le lien de
-connexion ne saura pas où revenir.
+Pour les comptes, déclarer `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` dans les
+variables d'environnement du site. Elles sont lues **à la construction**, pas à
+l'exécution : il faut donc reconstruire après les avoir ajoutées.
 
 ```bash
 git push
@@ -262,7 +370,8 @@ npm run build --prefix ui
 
 ## Partage sur le réseau local
 
-`vite.config.ts` écoute déjà sur `0.0.0.0`. Ouvrir le port (droits admin) :
+Le serveur de développement écoute déjà sur toutes les adresses. Ouvrir le port (droits
+admin) :
 
 ```powershell
 New-NetFirewallRule -DisplayName "Money Guru 6012" -Direction Inbound -Protocol TCP -LocalPort 6012 -Action Allow
@@ -276,27 +385,30 @@ money_guru/
 ├── supabase/schema.sql          table des profils et règles de ligne
 ├── Template/                    T1 mise en page · T2 charte · T3-T5 téléphone
 ├── context.md · questions.md    brief produit et points à trancher
-├── ui/.env.example              les deux variables de la synchronisation
+├── ui/.env.example              les deux variables des comptes
 ├── ui/src/
+│   ├── main.tsx                 les trois fournisseurs, puis l'application
 │   ├── App.tsx                  coquille, rail, transitions de vue
-│   ├── components/              barre supérieure, rail, barre basse, feuilles,
-│   │                            carte, chiffre, champs, anneau, courbe, jauge,
-│   │                            synchro (connexion, choix entre deux copies)
+│   ├── components/              barre supérieure, rail, barre basse, feuilles, carte,
+│   │                            chiffre, champs, anneau, courbe, jauge, boutons,
+│   │                            synchro (connexion, choix entre deux copies),
+│   │                            sauvegarde (enregistrer, restaurer)
 │   ├── features/
-│   │   ├── onboarding/          le parcours en huit étapes
+│   │   ├── onboarding/          le parcours en huit étapes, et ses portes de secours
 │   │   ├── tableau/             tableau de bord, bureau et téléphone
 │   │   ├── calendrier/          grille, liste mobile, vue annuelle
 │   │   ├── suivi/               fiche du mois, avancement de l'année
 │   │   ├── objectifs/           achats prévus et leur faisabilité
-│   │   ├── reglages/            « Mes chiffres » et la carte « Vos appareils »
+│   │   ├── reglages/            « Mes chiffres », vos appareils, copie de sécurité
 │   │   ├── methodes/ simulateur/ patrimoine/
 │   ├── lib/                     calculs · suivi · objectifs · calendrier · methodes ·
 │   │                            pedagogie · recherche · sections · format ·
 │   │                            graphiques · animations · definitions · types ·
 │   │                            synchro (arbitrage) · supabase (client) ·
-│   │                            profil (lecture et contrôle d’une sauvegarde)
-│   ├── state/                   finances (localStorage) · synchro · navigation ·
-│   │                            animations · media
+│   │                            profil (normalisation et lecture d'une sauvegarde)
+│   ├── state/                   finances (le profil) · synchro (comptes et échanges) ·
+│   │                            navigation · animations · media
+│   ├── __tests__/               douze fichiers, 287 tests
 │   └── test/                    profil de test — jamais livré à l'application
 ├── server/                      réservé, vierge
 ├── Dockerfile · nginx.conf · docker-compose.yml
